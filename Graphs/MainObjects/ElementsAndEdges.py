@@ -43,6 +43,10 @@ class GraphConfiguration:
         self.__graph_id = graph_id
         self.__edges_values = edges_values
 
+        if not isinstance(directed_edges, tuple):
+            directed_edges = tuple(directed_edges)
+        self.__directed_edges = directed_edges
+
     # ------------------------------------------------------------------------------------------------
     # Доступ к данным --------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
