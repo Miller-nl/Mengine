@@ -43,7 +43,8 @@ from Managers import ProcessesManager
 # объект для чтения/сохранения
 class ObjectReader:
 
-    def __init__(self, process_manager: ProcessesManager, launch_module_name: str = None,
+    def __init__(self, process_manager: ProcessesManager,
+                 launch_module_name: str = None,
                  default_directory: str = None):
         '''
         :param launch_module_name: имя вызывающего модуля

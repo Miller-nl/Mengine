@@ -8,3 +8,21 @@
     добавить параметры для экспортера "заменить имя/сместить имя/не делать экспорт"
 
 '''
+
+
+class FilesReader:
+
+
+
+
+    # СТАНДАРТНЫЕ ФУНКЦИИ ДЛЯ ВСЕХ.
+    def check_file(self):
+
+        return
+
+    def check_catalog(self):
+        return
+
+    def create_catalog(self):
+
+        return
