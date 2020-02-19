@@ -1,15 +1,25 @@
 '''
-Стоит добавить функцию конвертации нескольких "MainContainer" в один "SectionalContainer" по каким-либо параметрам.
+Это расширение обычного контейнера на "секционный", который будет использоваться в случаях, где необходим быстрый
+доступ к срезу элементов.
 '''
 
 import copy
-from DataContainers.MainContainer import MainContainer
-from Managers.ProcessesManager import ProcessesManager
+
+from SystemCore.DataContainers.SimpleContainer import SimpleContainer
+
+
+class GroupedContainer(SimpleContainer):
+
+
+    pass
+
+
+
 
 # ------------------------------------------------------------------------------------------------
 # Контейнер со срезами ---------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class SectionalContainer(MainContainer):
+class SectionalContainer(SimpleContainer):
     '''
     Класс - надостройка над MainContainer, в который добавлен "быстрый доступ".
     А именно - внутри класса есть словарь с наборами, в который можно добавлять те или иные объекты. Смысл в том,
@@ -50,7 +60,7 @@ class SectionalContainer(MainContainer):
             контейнеру логер в process_manager-е, а использовать "один на всех".
         '''
 
-        MainContainer.__init__(self=self,
+        SimpleContainer.__init__(self=self,
                                objects_type=objects_type,
                                identification_object=identification_object)
 

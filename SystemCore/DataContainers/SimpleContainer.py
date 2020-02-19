@@ -1,10 +1,14 @@
-import copy
+'''
+Самый простой контейнер.
+В своей сути это словарь, сопровождённый форматными удобными функциями интерфейса.
+'''
 
+import copy
 
 # ------------------------------------------------------------------------------------------------
 # Основной контейнер данных ----------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class MainContainer:
+class SimpleContainer:
     '''
     Класс, который хранит чисто данные о наборе. Смысл контейнера - хранение наборов одинаковых однородных данных.
     Например: набор объектов графа, набор SERP объектов, наборов со статистикой директа, наборов запросов т.п. .
@@ -20,11 +24,17 @@ class MainContainer:
         Property (без setter):
             identification_object - получить идентифицирующий объект
 
+            objects_type - тип объектов в контейнере
+
+            index_type - тип индекса в контейнере
+
             objects_dict - получить копию словаря с объектами
+
+            objects_list - получить список объектов
 
             dict_keys - получить ключи словаря с параметрами
 
-            max_key - получить максимальное занятое значение целого ключа
+            max_key - получить "максимальное" занятое значение ключа. Нужен для смещения индекса.
 
             elements_amount - количество элементов в контейнере
 
@@ -36,7 +46,7 @@ class MainContainer:
             add_object - добавить готовый объект класса объектов контейнера
 
             del_object - удалить объект
-        '''
+    '''
 
     def __init__(self, objects_type: object,
                  identification_object: object = None,
@@ -58,17 +68,29 @@ class MainContainer:
 
 
         # Создадим "дефолный" максимальный индекс
-        if isinstance(index_type, float):
-            self.__max_key = float(0)
-        elif isinstance(index_type, int):
-            self.__max_key = 0
-        elif isinstance(index_type, str):
-            self.__max_key = ''
-        elif isinstance(index_type, tuple):
-            self.__max_key = ()
-        else:
-            self.__max_key = None
+        self.__max_key = None  # Создадим переменную
+        self.__set_default_max_key(index_type=index_type)
 
+    def __set_default_max_key(self, index_type: int or float or str or tuple):
+        '''
+        Функция устанавливает "дефолтный" основной ключ.
+
+        :param index_type: тип индексов, которые мы используем. Очевидно, презюмируется что все индексы имеют один и
+            тот же тип. В противном случае можно использовать tuple, содержащий индекс внутри.
+        :return:
+        '''
+        if isinstance(index_type, float):
+            self.max_key = float(0)
+        elif isinstance(index_type, int):
+            self.max_key = 0
+        elif isinstance(index_type, str):
+            self.max_key = ''
+        elif isinstance(index_type, tuple):
+            self.max_key = ()
+        else:
+            self.max_key = None
+
+        return
 
     # ------------------------------------------------------------------------------------------------
     # Закроем данные через property ------------------------------------------------------------------
@@ -192,61 +214,34 @@ class MainContainer:
             return no_value
 
     def add_object(self, data_object: object,
-                   replace: bool = True,
-                   index: str or int or float or tuple = 'default') -> bool or int or None:
+                   index: str or int or float or tuple,
+                   replace: bool = True) -> bool or None:
         '''
         Функция принимает объект типа, указанного в __init__ (objects_type)
 
         :param data_object: объект, который надо поместить в контейнер. Тип объекта self.__objects_type
         :param replace: заменить если индекс занят?
-        :param index: индекс словаря, на который будет добавлен объект. По умолчанию это __max_key + 1
-        :return: Если индекс указан явно: был ли свободен индекс? True - свободен, False - был занят.
-                 Если индекс поставлен 'default' - вернёт индекс
+        :param index: индекс словаря, на который будет добавлен объект.
+        :return: Был ли свободен индекс? True - свободен, False - был занят.
                  В случае ошибки - None
         '''
-        if not isinstance(data_object, self.__objects_type):  # Если тип неверный
+        if not isinstance(data_object, self.objects_type):  # Если тип объекта неверный
             return None
 
-        # Установим индекс
-        if index == 'default':  # Если ставим дефолтный
-
-            if isinstance(self.__index_type, int):  # Если у нас целый ключ
-                # чтобы self.__max_key был всё время актуален
-                self.max_key += 1  # Сначала крутанём
-                new_index = self.max_key  # потом возьмём
-
-            elif isinstance(self.__index_type, float):  # Если у нас с точкой ключ
-                # чтобы self.__max_key был всё время актуален
-                new_index = self.max_key  # потом возьмём
-                new_index = float(int(new_index) + 1)  # интнем до целой части и плюсанём 1, и сделаем float
-                self.max_key = new_index  # Запомним новое значение
-                new_index = self.__max_key  # потом возьмём
-            else:
-                return None  # Если индекс имеет тип "строка" или "tuple", и индекс не задан - ошибка.
-        else:
-            if isinstance(index, self.__index_type):  # Если индекс верного типа
-                new_index = index  # берём его
-            else:  # если тип индекса неверный
-                return None  # Вернём ошибку
-
-            if isinstance(self.__index_type, int) or isinstance(self.__index_type, float):  # Если ключ - числовой индекс
-                if new_index > self.max_key:  # Если значение больше текущего максимального
-                    self.max_key = new_index  # заменим текущее на новое
+        if not isinstance(index, self.index_type):  # Если тип индекса неверный (не принял ислам)
+            return None
 
         try:  # Првоерим, занят ли индекс
-            a = self.__objects_dict[new_index]
+            a = self.__objects_dict[index]
             free = False
         except KeyError:
             free = True
 
         # Добавим в селф
         if free or replace:  # Если индекс свободен или разрешена замена
-            self.__objects_dict[new_index] = data_object
+            self.__objects_dict[index] = data_object
 
-        if index == 'default':  # если индекс определялся внутри функции
-            return new_index  # вернём индекс
-        else:  # Если индекс был подан заранее
-            return free  # ну - вернём результат
+        return free  # ну - вернём результат
 
     def del_object(self, index: str or int or float or tuple) -> bool:
         '''
