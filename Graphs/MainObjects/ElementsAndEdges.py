@@ -10,6 +10,7 @@
     narrow_down - функция сужения связей вершины графа (EdgeRelations)
 
     NodeIdentification - идентификационный элемент ребра
+
 '''
 
 import copy  # Для копирования
