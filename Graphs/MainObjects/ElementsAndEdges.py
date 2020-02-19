@@ -66,7 +66,7 @@ class EdgeIdentification:
     '''
     Объект, реализующий опознание элемента графа.
     Методы и свойства:
-        identification_key - опознавательный ключ графа
+        graph_configuration - опознавательный ключ графа
 
         label - метка
 
@@ -75,13 +75,13 @@ class EdgeIdentification:
 
     def __init__(self, element_id: str or int or float or tuple,
                  label: object = None,
-                 identification_key: GraphConfiguration = None):
+                 graph_configuration: GraphConfiguration = None):
         '''
         :param element_id: индекс элемента или ссылка на сопоставленный объект.
         :param label: метка элемента. Например его тип.
-        :param identification_key:  идентификационный ключ графа.
+        :param graph_configuration:  идентификационный ключ графа.
         '''
-        self.__identification_key = identification_key
+        self.__graph_configuration = graph_configuration
         self.__label = label
         self.__element_id = element_id  # Мой индекс
 
@@ -98,13 +98,13 @@ class EdgeIdentification:
         return self.__element_id
 
     @property
-    def identification_key(self) -> GraphConfiguration or None:
+    def graph_configuration(self) -> GraphConfiguration or None:
         '''
         Получение идентификатора графа.
 
         :return: объект - идентификатор или None, если его нет.
         '''
-        return self.__identification_key
+        return self.__graph_configuration
 
     @property
     def label(self) -> object:
@@ -451,7 +451,7 @@ class NodeIdentification:
     '''
     Объект, реализующий опознание элемента графа.
     Методы и свойства:
-        identification_key - опознавательный ключ графа
+        graph_configuration - опознавательный ключ графа
 
         label - метка
 
@@ -465,15 +465,15 @@ class NodeIdentification:
     def __init__(self, from_id: str or int or float or tuple,
                  to_id: str or int or float or tuple,
                  label: object = None, node_type: object = None,
-                 identification_key: GraphConfiguration = None):
+                 graph_configuration: GraphConfiguration = None):
         '''
         :param from_id: индекс элемента от которого идёт связь
         :param to_id: индекс элемента к которому идёт связь
         :param label: метка элемента.
         :param node_type: тип связи элемента.
-        :param identification_key:  идентификационный ключ графа.
+        :param graph_configuration:  идентификационный ключ графа.
         '''
-        self.__identification_key = identification_key
+        self.__graph_configuration = graph_configuration
         self.__label = label
         self.__node_type = node_type
         self.__from_id = from_id
@@ -501,13 +501,13 @@ class NodeIdentification:
         return self.__to_id
 
     @property
-    def identification_key(self) -> GraphConfiguration or None:
+    def graph_configuration(self) -> GraphConfiguration or None:
         '''
         Получение идентификатора графа.
 
         :return: объект - идентификатор или None, если его нет.
         '''
-        return self.__identification_key
+        return self.__graph_configuration
 
     @property
     def label(self) -> object:
