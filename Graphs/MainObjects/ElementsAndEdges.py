@@ -320,7 +320,7 @@ class EdgeRelationsString:
         del_relation() - удалить связь
     '''
 
-    __sep = '%'
+    __sep = '%;'
 
     def __init__(self, element_id: str or int or float):
         '''
