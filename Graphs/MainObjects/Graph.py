@@ -7,6 +7,10 @@
 
     Особенность в том, что при хранении в словаре и nx мы будем генерить связи в списки "на лету"? Или как?
 
+Сначала сделать граф для одного типа связей - направленный, ненаправленынй. После сделать граф для нескольких типов.
+
+Короче там разница получается в следующем?
+
 Стандартные методы и свойства
 
     Вершины
@@ -134,22 +138,3 @@ class Graph:
                                                         directed_edges=directed_edges,
                                                         non_directed_edges=non_directed_edges,
                                                         callback=callback, relations_container_type=relations_container_type)
-
-        self.__nodes_container
-        self.__edges_container
-
-    @property
-    def graph_configuration(self) -> GraphConfiguration or None:
-        '''
-        Получение идентификатора графа.
-
-        :return: объект - идентификатор или None, если его нет.
-        '''
-        return self.__graph_configuration
-
-    @property
-    def nodes_container(self) -> SimpleContainer:
-        '''
-        Отдаёт ссылку на основной контейнер элементов
-        :return:
-        '''
