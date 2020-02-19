@@ -1,7 +1,5 @@
 '''
 Тут находятся "основные" объекты графа:
-    GraphConfiguration - идентификационный ключ графа
-
     NodeIdentification - идентификационный объект элемента графа
 
     NodeRelationsList, NodeRelationsSet, NodeRelationsString - набор объектов для хранения данных
@@ -15,119 +13,7 @@
 
 import copy  # Для копирования
 
-# ------------------------------------------------------------------------------------------------
-# Идентификатор графа ----------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------
-class GraphConfiguration:
-    '''
-    Идентификационный объект графа.
-    Методы и свойства:
-        graph_id - индекс графа
-
-        edges_values - есть ли у графа объекты, находящиеся на рёбрах
-
-        directed_edges - tuple с "направленными" типами вязей
-
-        non_directed_edges - tuple с "ненаправленными" типами вязей
-
-        callback - нужно ли указывать "обратную" связь?
-
-        relations_container_type - тип контейнера для связей
-    '''
-
-    __default_edge_relations = 'list'
-
-    def __init__(self, graph_id: str or int or float or tuple = None,
-                 edges_values: bool = False,
-
-                 directed_edges: list or tuple or str or int = None,
-                 non_directed_edges: list or tuple or str or int = None,
-                 callback: bool = True, edge_relations: str = 'list'
-                 ):
-        '''
-        :param graph_id: индекс графа, который будет использоваться в работе.
-        :param edges_values: статус наличия DTO объектов на связях графа. True - есть, False - нет.
-        :param directed_edges: "направленные" связи. Обект знает: входит она в него или выходит.
-        :param non_directed_edges: ненаправленные связи - "вход" и "выход" эквивалентны
-        :param callback: извещать ли элемент, к которому идёт связь, о её наличии? Элемент, из которого
-            выходит связь оповещается автоматически.
-        :param edge_relations:  тип хранения связей: 'list', 'set', 'str' - указывает контейнер для связей.
-        '''
-
-        self.__graph_id = graph_id
-        self.__edges_values = edges_values
-
-        if not isinstance(directed_edges, tuple):
-            directed_edges = tuple(directed_edges)
-        self.__directed_edges = directed_edges
-
-        if not isinstance(non_directed_edges, tuple):
-            non_directed_edges = tuple(non_directed_edges)
-        self.__non_directed_edges = non_directed_edges
-
-        self.__callback = callback
-
-        if edge_relations in ['list', 'set', 'str']:
-            self.__relations_container_type = edge_relations
-        else:
-            self.__relations_container_type = self.__default_edge_relations
-
-    # ------------------------------------------------------------------------------------------------
-    # Доступ к данным --------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    @property
-    def graph_id(self) -> str or int or float or tuple or None:
-        '''
-        Получение индекса графа
-
-        :return: целое число
-        '''
-        return self.__graph_id
-
-    @property
-    def edges_values(self) -> bool:
-        '''
-        Получение статуса связей - есть ли объекты с данными для связей?
-
-        :return: статус существования объектов на рёбрах графа.
-        '''
-        return self.__edges_values
-
-    @property
-    def directed_edges(self) -> tuple:
-        '''
-        Функция отдаёт типы "направленных" связей
-
-        :return:
-        '''
-        return copy.copy(self.__directed_edges)
-
-    @property
-    def non_directed_edges(self) -> tuple:
-        '''
-        Функция отдаёт "ненаправленные" связи
-
-        :return:
-        '''
-        return copy.copy(self.__non_directed_edges)
-
-    @property
-    def callback(self) -> bool:
-        '''
-        Функция указывает: нужно ли для связи A->B, элементу B указывать связь из А.
-
-        :return: статус
-        '''
-        return self.__callback
-
-    @property
-    def relations_container_type(self) -> str:
-        '''
-        Отдаёт индекс, указывающий тип контейнеров для связи
-
-        :return: строка с типом
-        '''
-        return self.__relations_container_type
+from Graphs.MainObjects.GraphConfiguration import GraphConfiguration
 
 # ------------------------------------------------------------------------------------------------
 # Вершины ----------------------------------------------------------------------------------------
@@ -525,6 +411,8 @@ class EdgeIdentification:
 
         label - метка
 
+        weight - метка
+
         edge_type - тип связи
 
         from_id - индекс элемента от которого идёт связь
@@ -535,24 +423,47 @@ class EdgeIdentification:
     def __init__(self, from_id: str or int or float or tuple,
                  to_id: str or int or float or tuple,
                  label: object = None,
+                 weight: int or float = None,
                  edge_type: object = None,
                  graph_configuration: GraphConfiguration = None):
         '''
         :param from_id: индекс элемента от которого идёт связь
         :param to_id: индекс элемента к которому идёт связь
-        :param label: метка элемента.
+        :param label: метка связи (не тип!).
+        :param weight: "вес" элемента.
         :param edge_type: тип связи элемента.
         :param graph_configuration:  идентификационный ключ графа.
         '''
         self.__graph_configuration = graph_configuration
-        self.__label = label
+
         self.__edge_type = edge_type
         self.__from_id = from_id
         self.__to_id = to_id
 
+        self.__label = label
+        self.__weight = weight
+
     # ------------------------------------------------------------------------------------------------
     # Основные данные --------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
+    @property
+    def graph_configuration(self) -> GraphConfiguration or None:
+        '''
+        Получение идентификатора графа.
+
+        :return: объект - идентификатор или None, если его нет.
+        '''
+        return self.__graph_configuration
+
+    @property
+    def edge_type(self) -> object:
+        '''
+        Получение типа связи
+
+        :return: тип связи
+        '''
+        return self.__edge_type
+
     @property
     def from_id(self) -> str or int or float or tuple:
         '''
@@ -572,15 +483,6 @@ class EdgeIdentification:
         return self.__to_id
 
     @property
-    def graph_configuration(self) -> GraphConfiguration or None:
-        '''
-        Получение идентификатора графа.
-
-        :return: объект - идентификатор или None, если его нет.
-        '''
-        return self.__graph_configuration
-
-    @property
     def label(self) -> object:
         '''
         Получение метки связи
@@ -590,11 +492,12 @@ class EdgeIdentification:
         return self.__label
 
     @property
-    def edge_type(self) -> object:
+    def weight(self) -> int or float:
         '''
-        Получение типа связи
+        "Вес" связи
 
-        :return: тип связи
+        :return:
         '''
-        return self.__edge_type
+        return self.__weight
+
 

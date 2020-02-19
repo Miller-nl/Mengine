@@ -3,8 +3,8 @@
 
 '''
 
-from Graphs.MainObjects.ElementsAndEdges import GraphConfiguration, EdgeIdentification
-from Graphs.MainObjects.ElementsAndEdges import EdgeRelationsList, EdgeRelationsSet, EdgeRelationsString
+from Graphs.MainObjects.EdgesNodes import GraphConfiguration, EdgeIdentification
+from Graphs.MainObjects.EdgesNodes import NodeRelationsList, NodeRelationsSet, NodeRelationsString
 
 
 
@@ -29,11 +29,11 @@ class GraphElement(EdgeIdentification):
                                     graph_configuration=graph_configuration)
 
         if edge_relations == 'list':
-            self.__relations = EdgeRelationsList
+            self.__relations = NodeRelationsList
         elif edge_relations == 'str':
-            self.__relations = EdgeRelationsSet
+            self.__relations = NodeRelationsSet
         elif edge_relations == 'set':
-            self.__relations = EdgeRelationsString
+            self.__relations = NodeRelationsString
 
 
 

@@ -10,8 +10,8 @@
 import copy  # Для копирования
 
 from SystemCore.DataContainers.SimpleContainer import SimpleContainer
-from Graphs.MainObjects.ElementsAndEdges import GraphConfiguration, EdgeIdentification, narrow_down
-from Graphs.MainObjects.ElementsAndEdges import EdgeRelationsList, EdgeRelationsSet, EdgeRelationsString
+from Graphs.MainObjects.EdgesNodes import GraphConfiguration, EdgeIdentification, narrow_down
+from Graphs.MainObjects.EdgesNodes import EdgeRelationsList, EdgeRelationsSet, EdgeRelationsString
 
 
 
