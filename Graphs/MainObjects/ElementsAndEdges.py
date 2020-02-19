@@ -455,6 +455,8 @@ class NodeIdentification:
 
         label - метка
 
+        node_type - тип связи
+
         from_id - индекс элемента от которого идёт связь
 
         to_id - индекс элемента к которому идёт связь
@@ -462,16 +464,18 @@ class NodeIdentification:
 
     def __init__(self, from_id: str or int or float or tuple,
                  to_id: str or int or float or tuple,
-                 label: object = None,
+                 label: object = None, node_type: object = None,
                  identification_key: GraphConfiguration = None):
         '''
         :param from_id: индекс элемента от которого идёт связь
         :param to_id: индекс элемента к которому идёт связь
-        :param label: метка элемента. Например - тип.
+        :param label: метка элемента.
+        :param node_type: тип связи элемента.
         :param identification_key:  идентификационный ключ графа.
         '''
         self.__identification_key = identification_key
         self.__label = label
+        self.__node_type = node_type
         self.__from_id = from_id
         self.__to_id = to_id
 
@@ -508,9 +512,18 @@ class NodeIdentification:
     @property
     def label(self) -> object:
         '''
-        Получение метки элемента графа
+        Получение метки связи
 
         :return: метка
         '''
         return self.__label
+
+    @property
+    def node_type(self) -> object:
+        '''
+        Получение типа связи
+
+        :return: тип связи
+        '''
+        return self.__node_type
 
