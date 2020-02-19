@@ -1,0 +1,6 @@
+
+https://app.wandb.ai/miller-nl - лёхин сервис
+
+https://xakep.ru/2014/07/28/proper-log-collecting/ - сервисы логирование
+
+https://habr.com/ru/post/250803/
