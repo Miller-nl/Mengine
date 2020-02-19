@@ -2,14 +2,14 @@
 Тут находятся "основные" объекты графа:
     GraphConfiguration - идентификационный ключ графа
 
-    EdgeIdentification - идентификационный объект элемента графа
+    NodeIdentification - идентификационный объект элемента графа
 
-    EdgeRelationsList, EdgeRelationsSet, EdgeRelationsString - набор объектов для хранения данных
+    NodeRelationsList, NodeRelationsSet, NodeRelationsString - набор объектов для хранения данных
         (отличаются скоростью работы и занимаемой памятью)
 
-    narrow_down - функция сужения связей вершины графа (EdgeRelations)
+    narrow_down - функция сужения связей вершины графа (NodeRelations)
 
-    NodeIdentification - идентификационный элемент ребра
+    EdgeIdentification - идентификационный элемент ребра
 
 '''
 
@@ -23,14 +23,27 @@ class GraphConfiguration:
     Идентификационный объект графа.
     Методы и свойства:
         graph_id - индекс графа
+
         edges_values - есть ли у графа объекты, находящиеся на рёбрах
+
+        directed_edges - tuple с "направленными" типами вязей
+
+        non_directed_edges - tuple с "ненаправленными" типами вязей
+
+        callback - нужно ли указывать "обратную" связь?
+
+        relations_container_type - тип контейнера для связей
     '''
+
+    __default_edge_relations = 'list'
 
     def __init__(self, graph_id: str or int or float or tuple = None,
                  edges_values: bool = False,
+
                  directed_edges: list or tuple or str or int = None,
-                 non_directed_edges: list or tuple or str or int  = None,
-                 callback: bool = True):
+                 non_directed_edges: list or tuple or str or int = None,
+                 callback: bool = True, edge_relations: str = 'list'
+                 ):
         '''
         :param graph_id: индекс графа, который будет использоваться в работе.
         :param edges_values: статус наличия DTO объектов на связях графа. True - есть, False - нет.
@@ -38,6 +51,7 @@ class GraphConfiguration:
         :param non_directed_edges: ненаправленные связи - "вход" и "выход" эквивалентны
         :param callback: извещать ли элемент, к которому идёт связь, о её наличии? Элемент, из которого
             выходит связь оповещается автоматически.
+        :param edge_relations:  тип хранения связей: 'list', 'set', 'str' - указывает контейнер для связей.
         '''
 
         self.__graph_id = graph_id
@@ -46,6 +60,17 @@ class GraphConfiguration:
         if not isinstance(directed_edges, tuple):
             directed_edges = tuple(directed_edges)
         self.__directed_edges = directed_edges
+
+        if not isinstance(non_directed_edges, tuple):
+            non_directed_edges = tuple(non_directed_edges)
+        self.__non_directed_edges = non_directed_edges
+
+        self.__callback = callback
+
+        if edge_relations in ['list', 'set', 'str']:
+            self.__relations_container_type = edge_relations
+        else:
+            self.__relations_container_type = self.__default_edge_relations
 
     # ------------------------------------------------------------------------------------------------
     # Доступ к данным --------------------------------------------------------------------------------
@@ -68,11 +93,46 @@ class GraphConfiguration:
         '''
         return self.__edges_values
 
+    @property
+    def directed_edges(self) -> tuple:
+        '''
+        Функция отдаёт типы "направленных" связей
+
+        :return:
+        '''
+        return copy.copy(self.__directed_edges)
+
+    @property
+    def non_directed_edges(self) -> tuple:
+        '''
+        Функция отдаёт "ненаправленные" связи
+
+        :return:
+        '''
+        return copy.copy(self.__non_directed_edges)
+
+    @property
+    def callback(self) -> bool:
+        '''
+        Функция указывает: нужно ли для связи A->B, элементу B указывать связь из А.
+
+        :return: статус
+        '''
+        return self.__callback
+
+    @property
+    def relations_container_type(self) -> str:
+        '''
+        Отдаёт индекс, указывающий тип контейнеров для связи
+
+        :return: строка с типом
+        '''
+        return self.__relations_container_type
 
 # ------------------------------------------------------------------------------------------------
 # Вершины ----------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class EdgeIdentification:
+class NodeIdentification:
     '''
     Объект, реализующий опознание элемента графа.
     Методы и свойства:
@@ -84,12 +144,12 @@ class EdgeIdentification:
     '''
 
     def __init__(self, element_id: str or int or float or tuple,
-                 label: object = None,
-                 graph_configuration: GraphConfiguration = None):
+                 graph_configuration: GraphConfiguration,
+                 label: object = None):
         '''
         :param element_id: индекс элемента или ссылка на сопоставленный объект.
-        :param label: метка элемента. Например его тип.
         :param graph_configuration:  идентификационный ключ графа.
+        :param label: метка элемента. Например его тип.
         '''
         self.__graph_configuration = graph_configuration
         self.__label = label
@@ -126,7 +186,7 @@ class EdgeIdentification:
         return self.__label
 
 
-class EdgeRelationsList:
+class NodeRelationsList:
     '''
     Объект, который будет хранить в себе данные о связях указанного типа вершины с другими вершинами.
     Вид хранения - "в списке". Подходит когда объём памяти важнее скорости.
@@ -221,7 +281,7 @@ class EdgeRelationsList:
         return
 
 
-class EdgeRelationsSet:
+class NodeRelationsSet:
     '''
     Объект, который будет хранить в себе данные о связях указанного типа вершины с другими вершинами.
     Вид хранения - "в упорядоченном наборе". Подходит, когда требуется скорость, но не критична память.
@@ -311,7 +371,7 @@ class EdgeRelationsSet:
         return
 
 
-class EdgeRelationsString:
+class NodeRelationsString:
     '''
     Объект, который будет хранить в себе данные о связях указанного типа вершины с другими вершинами.
     Вид хранения - "в строке". Подходит когда требуется экономия памяти и индекс связей int, float, str.
@@ -426,7 +486,7 @@ class EdgeRelationsString:
         return
 
 
-def narrow_down(edge_relations: EdgeRelationsList or EdgeRelationsSet or EdgeRelationsString,
+def narrow_down(node_relations: NodeRelationsList or NodeRelationsSet or NodeRelationsString,
                 ids_list_or_set: list or set,
                 keep: bool = True):
     '''
@@ -434,7 +494,7 @@ def narrow_down(edge_relations: EdgeRelationsList or EdgeRelationsSet or EdgeRel
     элементы, которых нет в графе, чтобы избежать ошибок при обработке.
     Функция работает непосредственно с контейнером, изменяя его.
 
-    :param edge_relations: контейнер со связями
+    :param node_relations: контейнер со связями
     :param ids_list_or_set: список или сет индексов, которые будут оставлены/удалены
     :param keep: оставить или удалить id из ids_list_or_set? True - оставить, False - удалить
     :return: ничего
@@ -444,20 +504,20 @@ def narrow_down(edge_relations: EdgeRelationsList or EdgeRelationsSet or EdgeRel
         ids_list_or_set = set(ids_list_or_set)
 
     if keep:  # Если оставляем только указанные
-        for related_id in edge_relations.related_ids:  # Пошли по индексам
+        for related_id in node_relations.related_ids:  # Пошли по индексам
             if not related_id in ids_list_or_set:  # Если индекс не разрешён
-                edge_relations.del_relation(related_id)  # Сбрасываем связь
+                node_relations.del_relation(related_id)  # Сбрасываем связь
     else:  # Если скинуть указанные
-        for related_id in edge_relations.related_ids:  # Пошли по индексам
+        for related_id in node_relations.related_ids:  # Пошли по индексам
             if related_id in ids_list_or_set:  # Если индекс не разрешён
-                edge_relations.del_relation(related_id)  # Сбрасываем связь
+                node_relations.del_relation(related_id)  # Сбрасываем связь
     return
 
 
 # ------------------------------------------------------------------------------------------------
 # Рёбра ------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class NodeIdentification:
+class EdgeIdentification:
     '''
     Объект, реализующий опознание элемента графа.
     Методы и свойства:
@@ -465,7 +525,7 @@ class NodeIdentification:
 
         label - метка
 
-        node_type - тип связи
+        edge_type - тип связи
 
         from_id - индекс элемента от которого идёт связь
 
@@ -474,18 +534,19 @@ class NodeIdentification:
 
     def __init__(self, from_id: str or int or float or tuple,
                  to_id: str or int or float or tuple,
-                 label: object = None, node_type: object = None,
+                 label: object = None,
+                 edge_type: object = None,
                  graph_configuration: GraphConfiguration = None):
         '''
         :param from_id: индекс элемента от которого идёт связь
         :param to_id: индекс элемента к которому идёт связь
         :param label: метка элемента.
-        :param node_type: тип связи элемента.
+        :param edge_type: тип связи элемента.
         :param graph_configuration:  идентификационный ключ графа.
         '''
         self.__graph_configuration = graph_configuration
         self.__label = label
-        self.__node_type = node_type
+        self.__edge_type = edge_type
         self.__from_id = from_id
         self.__to_id = to_id
 
@@ -529,11 +590,11 @@ class NodeIdentification:
         return self.__label
 
     @property
-    def node_type(self) -> object:
+    def edge_type(self) -> object:
         '''
         Получение типа связи
 
         :return: тип связи
         '''
-        return self.__node_type
+        return self.__edge_type
 
