@@ -10,6 +10,25 @@
 import copy  # Для копирования
 
 from SystemCore.DataContainers.SimpleContainer import SimpleContainer
+from Graphs.MainObjects.ElementsAndEdges import GraphConfiguration, EdgeIdentification, narrow_down
+from Graphs.MainObjects.ElementsAndEdges import EdgeRelationsList, EdgeRelationsSet, EdgeRelationsString
+
+
+
+
+
+
+class NonDirectionalGraph:
+    '''
+    Объект реализует граф, имеющий единственный тип связи, не являющийся направленным. Все объекты знаюот обо всех
+        своих связях.
+    '''
+
+    def __init__(self, graph_id: str or int or float or tuple = None,
+                 edges_values: bool = False):
+
+        se
+
 
 
 # ------------------------------------------------------------------------------------------------

@@ -15,7 +15,6 @@
 
 import copy  # Для копирования
 
-
 # ------------------------------------------------------------------------------------------------
 # Идентификатор графа ----------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
@@ -28,10 +27,17 @@ class GraphConfiguration:
     '''
 
     def __init__(self, graph_id: str or int or float or tuple = None,
-                 edges_values: bool = False):
+                 edges_values: bool = False,
+                 directed_edges: list or tuple or str or int = None,
+                 non_directed_edges: list or tuple or str or int  = None,
+                 callback: bool = True):
         '''
         :param graph_id: индекс графа, который будет использоваться в работе.
-        :param edges_values: тип графа: статус наличия каких-либо объектов на связях графа. True - есть, False - нет.
+        :param edges_values: статус наличия DTO объектов на связях графа. True - есть, False - нет.
+        :param directed_edges: "направленные" связи. Обект знает: входит она в него или выходит.
+        :param non_directed_edges: ненаправленные связи - "вход" и "выход" эквивалентны
+        :param callback: извещать ли элемент, к которому идёт связь, о её наличии? Элемент, из которого
+            выходит связь оповещается автоматически.
         '''
 
         self.__graph_id = graph_id
