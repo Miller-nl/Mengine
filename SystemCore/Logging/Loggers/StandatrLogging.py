@@ -229,9 +229,7 @@ class StandartLogger:
     # ---------------------------------------------------------------------------------------------
     def to_log(self, message: str,
                log_type: str = 'DEBUG',
-               data: object = None,
                exception_mistake: object = None,
-               with_traceback: bool = None,
                **kwargs):
         '''
         Функция для отправки сообщений на сервер логирования.
@@ -251,9 +249,7 @@ class StandartLogger:
 
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
-        :param data: dto объект, который будет залогирован
         :param exception_mistake: ошибка, полученная при try except
-        :param with_traceback: логировать ли "обратный путь" (bool)? По дефолту (None) - да для всех, кроме INFO и DEBUG.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
         :return: ничего
@@ -304,6 +300,7 @@ class StandartLogger:
 
         return
 
+
     # ---------------------------------------------------------------------------------------------
     # Общие функции подготовки сообщения ----------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
@@ -314,6 +311,8 @@ class StandartLogger:
         :param exception_mistake: ошибка, полученная при try except
         :return: строка форматного сообщения 'ErrorType: error message'
         '''
+        if exception_mistake is None:
+            return 'Не передан exception_mistake'
         export_string = f'{type(exception_mistake)}'
         export_string = export_string.replace('<class ', '')
         export_string = export_string.replace("'>", '')
@@ -324,8 +323,9 @@ class StandartLogger:
 
     def __get_traceback(self) -> list:
         '''
+        Фукнция возвращяет "каталог вызова". Нужна для логгирование ошибок.
 
-        :return: список форматных
+        :return: список "пути".
         '''
         trace = []
         stack = traceback.extract_stack()[:-3]  # -3, чтобы убрать функцию логирования,  эту и "traceback"
