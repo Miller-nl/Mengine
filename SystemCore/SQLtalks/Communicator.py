@@ -1,3 +1,33 @@
+'''
+Стандартный интерфейс:
+
+
+
+
+'''
+
+class SQL:
+    '''
+    Модуль для коммуникации с базами данных
+    '''
+    a = 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import pandas as pd
 
 from SQLCommunication.SQLconnector import PostgreSQLconnector, ConnectionData

@@ -1,47 +1,9 @@
-'''
-Тут содержатся два модуля длы непосредственного общения с базой:
-- PypyodbcConnector - pypyodbc модуль, поддерживающий и PostgreSQL, и MySQL;
-- PostgreSQLconnector - модуль, для PostgreSQL, соответственно;
-- MySQL модуля нет.
-
-Они реализуют одинаковый набор методов и свойств:
-    allowed - статус разрешения на работу с базой
-
-    connection() - открыть/закрыть/переоткрыть конект
-    to_base() - отправка запроса с коррекцией базы
-    from_base() - получение данных по запросу от базы.
-
-От Тимура: orm, dao, query builder
-Полезные ссылки:
-    https://python-scripts.com/database
-    https://habr.com/ru/post/207110/ - классная ORM. Выглядит удобно для ООП
-    https://sqlbuilder.readthedocs.io/en/latest/ - тоже вариант
-
-    https://github.com/jiangwen365/pypyodbc/wiki/A-Hello-World-script-of-pypyodbc - pypyodbc
-
-    Дополнение
-    https://khashtamov.com/ru/mysql-python/
-    https://www.internet-technologies.ru/articles/posobie-po-mysql-na-python.html
-'''
 
 
-import time
 import psycopg2
+import time
 
-class ConnectionData:
-    '''
-    Объект, хранящий данные для подключения
-    '''
-    def __init__(self, base_name: str,
-                 host: str, port: str,
-                 user: str, password: str):
-
-        self.base_name = base_name
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-
+from SystemCore.Managers.ProcessesManager import ProcessesManager
 
 
 # ------------------------------------------------------------------------------------------------
