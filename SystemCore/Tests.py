@@ -1,7 +1,3 @@
-import traceback
-def aaa():
-    trace = []
-    stack = traceback.extract_stack()[:-3]  # -3, чтобы убрать функцию логирования,  эту и "traceback"
-    for s in stack:
-        trace.append(s.name + ' -> ' + s.line)
-    return trace
+from SystemCore.Logging.Loggers.FileConsoleLogging import FileConsoleLogger
+Logger = FileConsoleLogger(module_name='тест', journals_catalog='D:\Projects\Журналы', journal_file='тест 1',
+                           console_logging_level='DEBUG')
