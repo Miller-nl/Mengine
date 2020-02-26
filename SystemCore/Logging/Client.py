@@ -37,7 +37,7 @@ trace (след вызова - для лучшего понимания карт
 '''
 
 import logging
-import traceback
+import traceback  # https://docs.python.org/2/library/traceback.html
 import json
 import datetime
 
@@ -53,13 +53,8 @@ class LocalLoggerClient:
 
     def __init__(self,
                  module_name: str,
-                 journals_catalog: str, journal_file: str,
-                 write_to_console: bool = False,
-                 file_logging_level: str = 'DEBUG',
-                 console_logging_level: str = 'INFO',
                  log_initialization: bool = False,
-                 create_personal: bool = False
-                 ):
+                 log_traceback: bool = False):
         '''
         :param module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
         :param journals_catalog: директория для ведения журнала. По дефолту определяется через файл с настройками
@@ -74,6 +69,11 @@ class LocalLoggerClient:
         :param create_personal: параметр позволяет принудительно создавать отдельный логер объекту.
                 Не рекомендуется к использованию без особой нужды!
         '''
+
+
+        self.__log_traceback = log_traceback
+
+
 
         self.__module_name = module_name  # Имя модуля
         self.__journals_catalog = journals_catalog  # Каталог журнала
@@ -94,6 +94,93 @@ class LocalLoggerClient:
             self.to_log(message='Инициализация объекта класса', log_type='DEBUG')  # НЕ СРАБАТЫВАЕТ ВЫВОД В ФАЙЛ
 
     # ---------------------------------------------------------------------------------------------
+    # Общие функции -------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    def _expand_exception_mistake(self, exception_mistake: tuple = None,
+                                  to_json: bool = False) -> str:
+        '''
+        Функция разворачивает tuple, полученный в try/except функцией sys.exc_info() в строку сообщения об ошибке
+            в виде обычной строки или json строки.
+
+        :param exception_mistake: ошибка, полученная при try except функцией sys.exc_info().
+                Структура tuple: (ErrorType, args, traceback)
+        :param to_json: перевести ли ошибку в json?
+        :return: строка форматного сообщения 'ErrorType: error message'
+        '''
+
+        if exception_mistake is None:
+            return 'Не передан exception_mistake'
+
+
+        # traceback.extract_tb(exc_info[2])
+
+        if to_json:  # Если конвертим в json строку
+            json_data = {'ERROR': f'{exception_mistake[0]}: {exception_mistake[1].args}'}
+            if self.log_traceback:  # Если логируем след
+                json_data['traceback'] = self._expand_traceback(trace=traceback.extract_tb(exception_mistake[2]),
+                                                                to_json=True)
+                return json.dumps(json_data)  # Дампнем и вернём
+
+        else:
+            export_string = f'{exception_mistake[0]}: {exception_mistake[1].args}'
+
+        return export_string
+
+    @staticmethod
+    def _get_traceback() -> list:
+        '''
+        Фукнция возвращяет набор объектов traceback.FrameSummary. Нужна для логгирование ошибок.
+        Структура элемента списка:
+            Для <FrameSummary file C:\Program Files\JetBrains\PyCharm Community Edition 2018.3.5\helpers\pydev\pydevconsole.py, line 386 in <module>>
+            .name = '<module>'
+            .filename = 'C:\\Program Files\\JetBrains\\PyCharm Community Edition 2018.3.5\\helpers\\pydev\\pydevconsole.py'
+            .line = 'pydevconsole.start_client(host, port)'
+            .lineno = 386
+            .locals = kjgahsdgf
+
+        :return: список "пути".
+        '''
+        trace = traceback.extract_stack()[:-1]  # -1 нужен чтобы убрать себя (_get_traceback) из следа
+        return trace
+
+    @staticmethod
+    def _expand_traceback(trace: list,
+                          to_json: bool = False) -> str:
+        '''
+        Разворачивает след в строку для сообщения или json
+
+        Структура объекта списка:
+            Для <FrameSummary file C:\Program Files\JetBrains\PyCharm Community Edition 2018.3.5\helpers\pydev\pydevconsole.py, line 386 in <module>>
+            .name = '<module>'
+            .filename = 'C:\\Program Files\\JetBrains\\PyCharm Community Edition 2018.3.5\\helpers\\pydev\\pydevconsole.py'
+            .line = 'pydevconsole.start_client(host, port)'
+            .lineno = 386
+            .locals = kjgahsdgf
+
+
+        :param trace: след, полученный через traceback.extract_stack(). Если список пуст, ответ будет пустой строкой.
+        :param to_json: конвертировать в json строку?
+        :return: строка в обычном или в json формате.
+        '''
+        if trace:
+            if to_json:  # Если в json
+                trace_str = []
+                for tr in trace:  # Погнали собирать
+                    trace_str.append(f'File: "{tr.filename}", in {tr.module} line {tr.lineno}: {tr.line}')
+                trace_str = json.dumps(trace_str)  # Конвертим
+                return trace_str
+            else:  # Если просто в строку
+                trace_str = ''
+                for tr in trace:  # Погнали собирать
+                    trace_str += f'File: "{tr.filename}", in {tr.module} line {tr.lineno}: {tr.line}; '
+                trace_str = trace_str[:-1]  # Дропнем последний пробел
+                return trace_str  # Просто загоняем след в строку
+
+        else:  # Если нет
+            return ''  # Пустая строка вернётся
+
+
+    # ---------------------------------------------------------------------------------------------
     # Основные проперти ---------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     @property
@@ -104,6 +191,20 @@ class LocalLoggerClient:
         :return:
         '''
         return self.__module_name
+
+    @property
+    def log_traceback(self) -> bool:
+        '''
+        Отдаёт статус необходимости логирования следа при получении ошибок.
+
+        :return: bool статус
+        '''
+        return self.__log_traceback
+
+
+
+
+
 
     @property
     def journals_catalog(self) -> str:
