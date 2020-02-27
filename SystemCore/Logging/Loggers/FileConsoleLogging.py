@@ -79,7 +79,7 @@ class FileConsoleLogger:
 
         if log_initialization is True:  # Если надо логировать загрузку
             # Модуль логирования всегда подключается в ините объектов.
-            self.to_log(message='Инициализация объекта класса', log_type='DEBUG')
+            self.to_log(message='Инициализация объекта класса', logging_level='DEBUG')
 
     def _choose_logging_level(self, logging_level: str or int) -> str:
         '''
@@ -228,7 +228,7 @@ class FileConsoleLogger:
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
                                  f' журнала в каталоге {journals_catalog}. ' +
                                  'Каталог отсутствует'),
-                        log_type='ERROR')
+                        logging_level='ERROR')
             return None
 
         if journal_file is not None:  # Если имя файла задано явно
@@ -236,7 +236,7 @@ class FileConsoleLogger:
                 self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
                                      f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                      'FileHandler с этим файлом есть'),
-                            log_type='WARNING')
+                            logging_level='WARNING')
                 return False  # Вернём соовтетсвующий статус
         else:  # Если имя не задано
             journal_file = (str(datetime.datetime.now()).replace(':', ';') +
@@ -248,7 +248,7 @@ class FileConsoleLogger:
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
                                  f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                  'Имя файла недопустимо'),
-                        log_type='ERROR')
+                        logging_level='ERROR')
             return None
 
         File_handler.setLevel(file_logging_level)  # Установим уровень логирования в файл
@@ -264,13 +264,13 @@ class FileConsoleLogger:
     # Функции логирования -------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     def to_log(self, message: str,
-               log_type: str = 'DEBUG',
+               logging_level: str = 'DEBUG',
                **kwargs):
         '''
         Функция для отправки сообщений лог.
 
         :param message: сообщение для логирования
-        :param log_type: тип сообщения в лог:
+        :param logging_level: тип сообщения в лог:
                                 DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
 
                                 INFO	Подтверждение того, что все работает, как ожидалось.
@@ -288,17 +288,17 @@ class FileConsoleLogger:
         :return: ничего
         '''
 
-        self.__log_message(message=message, log_type=log_type)  # Отправим строку в лог
+        self.__log_message(message=message, logging_level=logging_level)  # Отправим строку в лог
 
         return
 
     def __log_message(self, message: str,
-                      log_type: str = 'DEBUG', ):
+                      logging_level: str = 'DEBUG', ):
         '''
         Функция выполняет непосредственную запись в файл
 
         :param message: сообщение для логирования
-        :param log_type: тип сообщения в лог:
+        :param logging_level: тип сообщения в лог:
                                 DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
 
                                 INFO	Подтверждение того, что все работает, как ожидалось.
@@ -314,15 +314,15 @@ class FileConsoleLogger:
                                         что сама программа не может продолжить работу.
         :return: ничего
         '''
-        if log_type == 'DEBUG':
+        if logging_level == 'DEBUG':
             self.__Logger.debug(message)
-        elif log_type == 'INFO':
+        elif logging_level == 'INFO':
             self.__Logger.info(message)
-        elif log_type == 'ERROR':
+        elif logging_level == 'ERROR':
             self.__Logger.error(message)
-        elif log_type == 'WARNING':
+        elif logging_level == 'WARNING':
             self.__Logger.warning(message)
-        elif log_type == 'CRITICAL':
+        elif logging_level == 'CRITICAL':
             self.__Logger.critical(message)
 
         return
