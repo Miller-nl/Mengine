@@ -67,10 +67,6 @@ class FileConsoleLogger:
 
         self.__module_name = module_name  # Имя модуля
 
-        # Проверим каталог логирования
-        if journals_catalog is None:
-            self.__journals_catalog = journals_catalog
-
         try:
             self.__default_logging_level = self._choose_logging_level(logging_level=file_logging_level)
         except NameError:  # Если тип задан неверно
