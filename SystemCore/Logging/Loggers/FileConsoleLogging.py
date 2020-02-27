@@ -66,7 +66,7 @@ class FileConsoleLogger:
         try:
             self.__default_logging_level = self._choose_logging_level(logging_level=file_logging_level)
         except NameError:  # Если тип задан неверно
-            self.__default_logging_level = 10  # Ставим дебаг
+            self.__default_logging_level = 'DEBUG'  # Ставим дебаг
 
         if console_logging_level is not None:  # Если не None - логгируем
             self.__console_logging_level = self._choose_logging_level(logging_level=console_logging_level)
@@ -140,6 +140,7 @@ class FileConsoleLogger:
     @property
     def module_name(self) -> str:
         '''
+        Общий параметр
         Имя модуля, который использует данный логер. Причём это имя, созданное менеджером процесса.
 
         :return: строка с именем модуля
@@ -149,6 +150,7 @@ class FileConsoleLogger:
     @property
     def journals_files(self) -> list:
         '''
+        Общий параметр
         Отдаёт список полных путей к файлам, если у логера есть logging.FileHandler
 
         :return: список строк с полными путями файлов. Может быть пустым
@@ -156,12 +158,13 @@ class FileConsoleLogger:
         export_list = []
         for handler in self.__Logger.handlers:
             if isinstance(handler, logging.FileHandler):  # Если это хэндлер журнала в файле
-                export_list.append(handler.baseFilename.replace('\\', '/'))  # Добавим путь с "правильными" косыми
+                export_list.append(handler.baseFilename)  # Добавим путь
         return export_list
 
     @property
-    def default_logging_level(self) -> int:
+    def default_logging_level(self) -> str:
         '''
+        Общий параметр
         Отдаёт "дефолтный" уровень логирования в файл: 10 - DEBUG; 20 - INFO; 30 - WARNING; 40 - ERROR; 50 - CRITICAL
 
         :return: число
@@ -169,7 +172,7 @@ class FileConsoleLogger:
         return self.__default_logging_level
 
     @property
-    def console_logging_level(self) -> int or None:
+    def console_logging_level(self) -> str or None:
         '''
         Отдаёт уровень логирования в консоль. Если это 0 или None - логирование запрощено.
         10 - DEBUG; 20 - INFO; 30 - WARNING; 40 - ERROR; 50 - CRITICAL
@@ -213,9 +216,7 @@ class FileConsoleLogger:
         '''
         # Подготовим параметры
 
-        journals_catalog = journals_catalog.replace('\\', '/')  # Сделаем замену на "правильные" косые
-        if not journals_catalog.endswith('/'):
-            journals_catalog += '/'  # Добавим нужное окончание, если его нет
+        journals_catalog = os.path.abspath(journals_catalog)  # отформатируем путь
 
         if isinstance(journal_file, str):  # Если имя файла задано
             if not journal_file.endswith('.log'):  # Проверим расширение
@@ -225,16 +226,15 @@ class FileConsoleLogger:
 
         if not os.access(journals_catalog, mode=os.F_OK):  # Проверим каталог
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
-                                 f' с файлом: {journals_catalog + journal_file}. ' +
+                                 f' журнала в каталоге {journals_catalog}. ' +
                                  'Каталог отсутствует'),
                         log_type='ERROR')
             return None
 
-
         if journal_file is not None:  # Если имя файла задано явно
-            if (journals_catalog + journal_file) in self.journals_files:  # Если хэндлер для этого файла уже есть
+            if os.path.join(journals_catalog, journal_file) in self.journals_files:  # Если хэндлер для этого файла уже есть
                 self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
-                                     f' с файлом: {journals_catalog + journal_file}. ' +
+                                     f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                      'FileHandler с этим файлом есть'),
                             log_type='WARNING')
                 return False  # Вернём соовтетсвующий статус
@@ -243,10 +243,10 @@ class FileConsoleLogger:
                             f' {self.module_name}' + '.log')
 
         try:
-            File_handler = logging.FileHandler(journals_catalog + journal_file)  # Создадим FileHandler
+            File_handler = logging.FileHandler(os.path.join(journals_catalog, journal_file))  # Создадим FileHandler
         except OSError:  # Если имя файла недопустимо
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
-                                 f' с файлом: {journals_catalog + journal_file}. ' +
+                                 f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                  'Имя файла недопустимо'),
                         log_type='ERROR')
             return None
