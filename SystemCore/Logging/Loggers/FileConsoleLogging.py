@@ -36,9 +36,6 @@ class FileConsoleLogger:
         _get_handlers - отдаёт все хэндлеры логера
 
         _choose_logging_level() - позволяет выбрать/проверить "уровень логирования"
-
-
-
     '''
 
     __logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
