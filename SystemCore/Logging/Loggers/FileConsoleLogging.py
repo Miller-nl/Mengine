@@ -14,14 +14,14 @@ class FileConsoleLogger:
 
 
     Свойства и методы:
-
-
-
         module_name - имя модуля
 
-        journals_files - файлы с журналами
+        journals - список с данными о журналах
 
         default_logging_level - уровень логирования поумолчанию
+
+
+        journals_files - файлы с журналами
 
         console_logging_level - уровень логирования в консоль
 
@@ -170,6 +170,16 @@ class FileConsoleLogger:
         :return: копия спискаошибок
         '''
         return self.__logger_mistakes.copy()
+
+    @property
+    def journals(self) -> list:
+        '''
+        Функция отдаёт данные о том, куда логгер отправляет сообщения.
+        Обработка списка данных - уже отдельный вопрос.
+
+        :return:
+        '''
+        return self.journals_files
 
     # ---------------------------------------------------------------------------------------------
     # Личные property -----------------------------------------------------------------------------
