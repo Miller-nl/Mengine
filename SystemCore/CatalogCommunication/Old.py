@@ -1,9 +1,7 @@
-
 import os  # для работы с файлами
 import configparser
 
-
-from SystemCore.CatalogCommunication.DefoultCatalogs import main_files_catalog, data_catalogs
+from SystemCore.CatalogCommunication.DefoultCatalogs import program_catalog, main_files_catalog, data_catalogs
 
 
 # https://docs.python.org/3.5/library/os.path.html#os.path.abspath
@@ -14,54 +12,26 @@ class CatalogsManager:
     '''
     Модуль для работы с каталогами. Его задача: создать схему каталогов и обсепечить работу с ней.
 
-    Структура каталогов:
-    "Основной каталог" -> "Каталог процесса" (по имени процесса) -> Подкаталог сессии (session_subdirectory) ->
-        Папки для данных -> Файлы  или (Подкаталоги модулей сессии -> Файлы)
-
     Методы и свойства
-
-
-
-        _manager_mistakes - список ошибок, полученных при работе с каталогами
-            # .append(sys.exc_info())
 
 
     '''
 
     def __init__(self,
                  process_name: str,
-                 main_path: str = None,
-                 program_catalog: str = None,
+                 main_path: str = 'default',
                  session_subdirectory: str = None):
         '''
 
         :param process_name: имя процесса.
         :param main_path: основной каталог, в подкаталоге которого процесс будет хранить свои данные.
             Значение 'default' значит, что будет использован main_files_catalog, указанный в файле с менеджером.
-        :param program_catalog: каталог, в котором лежит скрипт. Дефолтно - неизвестен
         :param session_subdirectory: подкаталог, в котором будет разворачиватсья стандартная схема папок для данной
             сессии. Это удобно для разделения данных от разных запусков модуля и тестирования.
         '''
 
         self.__process_name = process_name
-
-        if main_path is None:
-            main_path = main_files_catalog  # Берём импортнутый каталог
-        self.__main_path = main_path
-
-        self.__session_subdirectory = session_subdirectory
-
-
-
-
-
-
-
-
-
         self.__program_catalog = program_catalog  # Каталог скрипта
-
-
 
         # Создадим глвный каталог
         self.__main_path = self.__create_process_path(main_path=main_path, subdirectory=session_subdirectory)
@@ -109,13 +79,6 @@ class CatalogsManager:
         '''
         return self.__session_catalog
 
-
-
-
-
-
-
-
     @property
     def sub_catalogs(self) -> configparser.ConfigParser:
         '''
@@ -134,19 +97,6 @@ class CatalogsManager:
         :param name:
         :return:
         '''
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     # ------------------------------------------------------------------------------------------------
     # "Удобный" доступ к подкаталогам ----------------------------------------------------------------
@@ -278,7 +228,6 @@ class CatalogsManager:
 
     # Создать директорию, если её нет
 
-
     def add_subdirectory(self, catalog: str,
                          section: str,
                          option: str,
@@ -319,7 +268,7 @@ class CatalogsManager:
                 self.__catalogs.remove_option(section=section, option=option)
             else:
                 return False  # Если замена не разрешена, верёнм "ошибку"
-            #catalogs.remove_section()
+            # catalogs.remove_section()
         except configparser.NoOptionError:  # Если нет опции такой
             pass  # Чилим
 
@@ -333,7 +282,7 @@ class CatalogsManager:
             return result  # верёнм результат
 
     def get_subdirectory(self, section: str,
-                         option: str,) -> str or None:
+                         option: str, ) -> str or None:
         '''
         Функция выдаёт полный путь в подкаталог по catalog_index, если он есть.
         :param section: "секция" подкаталога (смысловая часть), как "logging", "sql" и прочие.
