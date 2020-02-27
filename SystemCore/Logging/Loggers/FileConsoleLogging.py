@@ -1,6 +1,7 @@
 import logging
 import datetime
 import os
+import sys
 
 
 class FileConsoleLogger:
@@ -62,11 +63,10 @@ class FileConsoleLogger:
         '''
 
         self.__module_name = module_name  # Имя модуля
+        self.__logger_mistakes = []  # Список ошибок логера (как лог логера)
 
-        try:
-            self.__default_logging_level = self._choose_logging_level(logging_level=file_logging_level)
-        except NameError:  # Если тип задан неверно
-            self.__default_logging_level = 'DEBUG'  # Ставим дебаг
+
+        self.__default_logging_level = self._choose_logging_level(logging_level=file_logging_level)
 
         if console_logging_level is not None:  # Если не None - логгируем
             self.__console_logging_level = self._choose_logging_level(logging_level=console_logging_level)
@@ -135,7 +135,7 @@ class FileConsoleLogger:
         return
 
     # ---------------------------------------------------------------------------------------------
-    # Основные проперти ---------------------------------------------------------------------------
+    # Общие property ------------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     @property
     def module_name(self) -> str:
@@ -170,6 +170,20 @@ class FileConsoleLogger:
         :return: число
         '''
         return self.__default_logging_level
+
+    @property
+    def _logger_mistakes(self) -> list:
+        '''
+        Общий параметр
+        Функция отдаёт ошибки, полученные при работе логера. Ошибки извлекаются через sys.exc_info().
+
+        :return: копия спискаошибок
+        '''
+        return self.__logger_mistakes.copy()
+
+    # ---------------------------------------------------------------------------------------------
+    # Личные property -----------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
 
     @property
     def console_logging_level(self) -> str or None:
@@ -245,6 +259,7 @@ class FileConsoleLogger:
         try:
             File_handler = logging.FileHandler(os.path.join(journals_catalog, journal_file))  # Создадим FileHandler
         except OSError:  # Если имя файла недопустимо
+            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
                                  f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                  'Имя файла недопустимо'),
