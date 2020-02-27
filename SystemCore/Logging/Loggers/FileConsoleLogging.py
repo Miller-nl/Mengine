@@ -3,6 +3,8 @@ import datetime
 import os
 import sys
 
+from SystemCore.Logging.Loggers.СommonFunctions import prepare_exception_and_trace
+
 
 class FileConsoleLogger:
     '''
@@ -150,20 +152,6 @@ class FileConsoleLogger:
         return self.__module_name
 
     @property
-    def journals_files(self) -> list:
-        '''
-        Общий параметр
-        Отдаёт список полных путей к файлам, если у логера есть logging.FileHandler
-
-        :return: список строк с полными путями файлов. Может быть пустым
-        '''
-        export_list = []
-        for handler in self.__Logger.handlers:
-            if isinstance(handler, logging.FileHandler):  # Если это хэндлер журнала в файле
-                export_list.append(handler.baseFilename)  # Добавим путь
-        return export_list
-
-    @property
     def default_logging_level(self) -> str:
         '''
         Общий параметр
@@ -186,6 +174,18 @@ class FileConsoleLogger:
     # ---------------------------------------------------------------------------------------------
     # Личные property -----------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
+    @property
+    def journals_files(self) -> list:
+        '''
+        Отдаёт список полных путей к файлам, если у логера есть logging.FileHandler
+
+        :return: список строк с полными путями файлов. Может быть пустым
+        '''
+        export_list = []
+        for handler in self.__Logger.handlers:
+            if isinstance(handler, logging.FileHandler):  # Если это хэндлер журнала в файле
+                export_list.append(handler.baseFilename)  # Добавим путь
+        return export_list
 
     @property
     def console_logging_level(self) -> str or None:
@@ -282,6 +282,8 @@ class FileConsoleLogger:
     # ---------------------------------------------------------------------------------------------
     def to_log(self, message: str,
                logging_level: str = 'DEBUG',
+               exception_mistake: tuple or bool = False,
+               trace: list or bool = False,
                **kwargs):
         '''
         Функция для отправки сообщений лог.
@@ -301,9 +303,17 @@ class FileConsoleLogger:
 
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
+        :param exception_mistake: данные об ошибке. Или это tuple, полученный от sys.exc_info(), состоящий из
+            всех трёхэлементов, или указание на запрос ошибки внутри функции логирования.
+            След ошибки игнорируется в этом логере.
         :param kwargs: дополнительные параметры, чтобы не крашилось в случае чего.
         :return: ничего
         '''
+
+        # Выполним развёртку exception_mistake и traceback
+        exception_mistake, trace = prepare_exception_and_trace(exception_mistake=exception_mistake, trace=None)
+        if exception_mistake is not None:  # Если есть данные об ошибке
+            message = f'mistake: {exception_mistake}; {message}'
 
         self.__log_message(message=message, logging_level=logging_level)  # Отправим строку в лог
 
