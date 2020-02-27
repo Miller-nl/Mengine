@@ -1,254 +1,169 @@
-'''
-Сделать логгирование в разные файлы - чтобы выносить "ошибки" отдельно.
-Сделать логер для сохранения SQL данных.
-Добавить в to_log(), при необходимости, функцию trace back
-
-"Основной файл" - 'main_journal' + ".log"
-
-
-Логгирование в json!
-Доп файл, дублирующий журнал в формате jsonl - каждая строка - json объект
-https://ru.stackoverflow.com/questions/726673/%D0%BA%D0%B0%D0%BA-%D0%B4%D0%BE%D0%BF%D0%B8%D1%81%D1%8B%D0%B2%D0%B0%D1%82%D1%8C-%D0%B8%D0%BD%D1%84%D0%BE%D1%80%D0%BC%D0%B0%D1%86%D0%B8%D1%8E-%D0%B2-json-%D1%84%D0%B0%D0%B9%D0%BB-%D0%BD%D0%B0-python
-http://jsonlines.org/
-
 import json
-frame = {'timestamp':0.015,'movement':'type_2'}
-with open('frames.jsonlines', 'a', encoding='utf-8') as file:
-    json.dump(frame, file)
-    file.write('\n')
-
-Смысл - логирование данных ошибки.
-В каком виде делаем:
-date дата
-time время
-type тип
-module модуль, в котором была ошибка (module_name)
-trace (след вызова - для лучшего понимания картины)
-
-функция ошибки
-сообщение
-данные - в простом виде каком-то. Без сохранения объектов.
-"miss" - онибка из эксепшена
-
-
-Добавить в "логгион" miss в качестве параметра
-и **rwargs, которые будут добавлены в data словарь.
-
-'''
-
 import logging
-import traceback
-import json
 import datetime
+import os
+import sys
 
-# Локальный клиент для логирования
-class LocalLoggerClient:
-    '''
-    Объект, использующийся для логирования данных.
-    Если объекту не указано в init-е, что модуль должен быть создан отдельный логгер, то объект для
-    логирования будет использовать уже существующий логер для одинаковых module_name.
 
-    Вывод данных в json файл  НЕ РАБОТАЕТ!! при инициализации ( не логгируется ТОЛЬКО сообщение создания логера)
+class JsonLogger:
     '''
+    Объект, использующийся для логирования данных в файлы "name.jsonlines".
+
+    Уровни логирования: 10 или 'DEBUG'; 20 или 'INFO'; 30 или 'WARNING'; 40 или 'ERROR'; 50 или 'CRITICAL'.
+
+
+    Свойства и методы:
+
+        module_name - имя модуля
+
+        journals_files - файл с журналом
+
+        default_logging_level - уровень логирования поумолчанию
+
+        to_log() - непосредственно функция для логирования
+
+        _logger_mistakes - список ошибок, полученных при работе логера
+
+        _choose_logging_level() - позволяет выбрать/проверить "уровень логирования"
+    '''
+
+    __logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+    __logging_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
 
     def __init__(self,
                  module_name: str,
-                 journals_catalog: str, journal_file: str,
-                 write_to_console: bool = False,
-                 file_logging_level: str = 'DEBUG',
-                 console_logging_level: str = 'INFO',
-                 log_initialization: bool = False,
-                 create_personal: bool = False
-                 ):
+                 journals_catalog: str, journal_file: str = None,
+                 logging_level: str or int = 'DEBUG',
+                 log_initialization: bool = False):
         '''
+
         :param module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
         :param journals_catalog: директория для ведения журнала. По дефолту определяется через файл с настройками
-        :param journal_file: файл для логирования
-        :param write_to_console: выводить сообщения и в журнал, и в консоль тоже? В функции логгирования есть
-            отдельная настройка этого параметра. Не обязательно использовать вывод сообщений в консоль для всего логера.
-        :param file_logging_level: Уровень логирования в фай (файл .log, в json уходит ВСЁ)
-        :param console_logging_level: Уровень логирования в консоль
-        :param parent_structure: Структурная часть, показывающая вызывающие модули: "A.B.C.текущий модуль"
+        :param journal_file: файл для логирования без расширения. Если не задан, создастся автоматически по времени и дате.
+        :param logging_level: Уровень логирования в файл .jsonlines. Если задан "косячно", поставится "DEBUG"
         :param log_initialization: логировать инициализацию? По дефолту - нет, чтобы не "срать" в лог.
-                                    Логгировать инициализацию ТОЛЬКО для основных модулей.
-        :param create_personal: параметр позволяет принудительно создавать отдельный логер объекту.
-                Не рекомендуется к использованию без особой нужды!
+            Логгировать инициализацию ТОЛЬКО для основных модулей.
         '''
 
         self.__module_name = module_name  # Имя модуля
-        self.__journals_catalog = journals_catalog  # Каталог журнала
-        self.__journal_file = journal_file  # файл журнала
+        self.__default_logging_level = self._choose_logging_level(logging_level=logging_level)  # Установим уровень лога
 
-        self.__write_to_console = write_to_console  # детектор логирования в консоль
+        self.__logger_mistakes = []  # Список ошибок логера (как лог логера)
 
-        # Установим уровень логиирования
-        self.__logging_level = self.choose_logging_level(logging_level=console_logging_level)
-
-        # Преднастроим логер
-        self.__set_logger(module_name=module_name,
-                          file_logging_level=file_logging_level, console_logging_level=console_logging_level,
-                          required_separate_logger=create_personal)
+        # Создадим файл журнала если его нет
+        self.__prepare_file(journals_catalog=journals_catalog, journal_file=journal_file)
 
         if log_initialization is True:  # Если надо логировать загрузку
             # Модуль логирования всегда подключается в ините объектов.
-            self.to_log(message='Инициализация объекта класса', log_type='DEBUG')  # НЕ СРАБАТЫВАЕТ ВЫВОД В ФАЙЛ
+            self.to_log(message='Инициализация объекта класса', logging_level='DEBUG')
 
-    # ---------------------------------------------------------------------------------------------
-    # Основные проперти ---------------------------------------------------------------------------
-    # ---------------------------------------------------------------------------------------------
-    @property
-    def module_name(self) -> str:
-        '''
-        Имя модуля, который использует данный логер. Причём это имя, созданное менеджером процесса.
-
-        :return:
-        '''
-        return self.__module_name
-
-    @property
-    def journals_catalog(self) -> str:
-        '''
-        Каталог с файлом
-
-        :return:
-        '''
-        return self.__journals_catalog
-
-    @property
-    def journal_file(self) -> str:
-        '''
-        Имя файла с журналом. БЕЗ КАТАЛОГА
-
-        :return:
-        '''
-        return self.__journal_file
-
-    @property
-    def journal_json_file(self):
-        '''
-        Получение json файла с журналом. БЕЗ КАТАЛОГА
-
-        :return:
-        '''
-        return self.journal_file.replace('.log', '.jsonlines')
-
-    @property
-    def write_to_console(self) -> bool:
-        '''
-        Получаем детектор вывода данных и в консоль тоже.
-
-        :return:
-        '''
-        return self.__write_to_console
-
-    # ---------------------------------------------------------------------------------------------
-    # Создание и настройка логера -----------------------------------------------------------------
-    # ---------------------------------------------------------------------------------------------
-    # Функция создания и преднастройки логера
-    def __set_logger(self, module_name: str,
-                     file_logging_level: str = 'DEBUG',
-                     console_logging_level: str = 'INFO',
-                     required_separate_logger: bool = False):
-        '''
-        Функция устанавливает/создаёт логер, который будет использоваться в этом объекте.
-
-        :param module_name: имя логера
-        :param file_logging_level: Уровень логирования в файл
-        :param console_logging_level: Уровень логирования в консоль
-        :param required_separate_logger: нужно ли принудительно создать отдельный логер
-        :return: ничего
-        '''
-
-        self.__Logger = logging.getLogger(module_name)  # Запросим логер
-
-        if required_separate_logger or self.get_file_handlers(self.__Logger) == []:
-            # Если надо принудительно создать логер, или нет готового логера
-
-            self.__Logger.setLevel('DEBUG')  # Установим уровень логирования самого логера как минимальный
-
-            if self.write_to_console:  # Если пишем в консоль
-                # Сделаем логирование в консоль
-                Stream_handler = logging.StreamHandler()
-                Stream_handler.setLevel(console_logging_level)
-                stream_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-                Stream_handler.setFormatter(stream_formatter)
-                self.__Logger.addHandler(Stream_handler)  # отдадим в наш экземпляр логера
-
-            # Установим логирование в файл
-            File_handler = logging.FileHandler(self.journals_catalog + self.journal_file)  # Обозначим работу с файлом
-            File_handler.setLevel(file_logging_level)  # Установим уровень логирования в файл
-            File_handler.set_name(module_name)  # Дадим хэндлеру имя, чтобы понимать, чей он
-            file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')  # зададим формат логирования
-            File_handler.setFormatter(file_formatter)  # Отдадим форматер сообщения в менеджер ведения файла
-            self.__Logger.addHandler(File_handler)  # отдадим в наш экземпляр логера
-
-            # Создадим файл для логирования в jsonlines
-            with open(self.journals_catalog + self.journal_json_file, "w", encoding='utf-8') as write_file:
-                # Создадим объект для записи
-                write_file.flush()
-                pass
-
-        # self.__Logger.propagate = False  # Запреты работы с иерархией
-        return
-
-    # Функция проверки хэндлеров
-    @staticmethod
-    def get_file_handlers(logger):
-        '''
-        Функция проверяет, есть ли у логера объект handler и возвращяет их список
-        Каждый элемент из этого списка будет делать запись в лог. Функция оч важна.
-        Ссылка - https://stackoverflow.com/questions/19561058/duplicate-output-in-simple-python-logging-configuration?rq=1
-
-        :param logger: объект - логер
-        :return: список handler . Может быть пуст.
-        '''
-        handlers = logger.handlers
-        while True:
-            logger = logger.parent
-            handlers.extend(logger.handlers)
-            if not (logger.parent and logger.propagate):
-                break
-
-        return handlers
-
-    # Настройка уровня логирования
-    @staticmethod
-    def choose_logging_level(logging_level: str):
+    def _choose_logging_level(self, logging_level: str or int) -> str:
         '''
         Установление уровня логирования
 
         :param logging_level: уровень логирования.
-        :return: объект, который будет передаваться в функцию логирвоания для опознания уровня.
+        :return: строка с именем уровня логирования
+            10 - DEBUG; 20 - INFO; 30 - WARNING; 40 - ERROR; 50 - CRITICAL.
+            Если уровень логирования не опознан, вернётся "дефолтный" - указанный при создании логера.
         '''
-        logging_levels = {'DEBUG': logging.DEBUG,
-                          'INFO': logging.INFO,
-                          'WARNING': logging.WARNING,
-                          'ERROR': logging.ERROR,
-                          'CRITICAL': logging.CRITICAL}
+        if isinstance(logging_level, str):
+            if logging_level in self.__logging_levels:  # Првоерим по списку
+                return logging_level  # Если из списка - вернём как есть
+            return logging.getLevelName(logging_level)  # Иначе прогоним через "получение уровня"
 
-        if logging_level in logging_levels.keys():  # Если есть в ключах
-            logging_level = logging_levels[logging_level]
+        else:  # Если задано число
+            return logging.getLevelName(logging_level)  # вернём строковый уровень
 
-        else:  # Если не найден вариант логирования
-            logging_level = logging_levels['INFO']
+    def __prepare_file(self, journals_catalog: str, journal_file: str = None) -> bool or None:
+        '''
+        Функция устанавливает файл для логирования
 
-        return logging_level
+        :param journals_catalog: директория для ведения журнала
+        :param journal_file: файл для логирования
+        :return: статус добавления: True - Успешно; None - ошибка (нет каталога или неверное имя файла).
+        '''
+
+        # Создадим имя файлай
+        journals_catalog = os.path.abspath(journals_catalog)  # отформатируем путь
+
+        if isinstance(journal_file, str):  # Если имя файла задано
+            if not journal_file.endswith('.jsonlines'):  # Проверим расширение
+                journal_file += '.jsonlines'  # Установим, если нет
+        else:  # Если имя не задано
+            journal_file = (str(datetime.datetime.now()).replace(':', ';') +
+                            f' {self.module_name}' + '.jsonlines')
+        self.__journal_file = os.path.join(journals_catalog, journal_file)  # Забьём в полный путь
+
+        try:
+            with open(self.__journal_file, "w", encoding="utf-8") as f:
+                pass
+        except FileNotFoundError:  # Если нет каталога
+            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+            return None
+        except OSError:  # Если косячное имя файла
+            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+            return None
+
+        return True  # Если всё ок
+
+    # ---------------------------------------------------------------------------------------------
+    # Общие property ------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    @property
+    def module_name(self) -> str:
+        '''
+        Общий параметр
+        Имя модуля, который использует данный логер. Причём это имя, созданное менеджером процесса.
+
+        :return: строка с именем модуля
+        '''
+        return self.__module_name
+
+    @property
+    def journals_files(self) -> list:
+        '''
+        Общий параметр
+        Отдаёт полный путь к файлу лога. В виде списка - для единости интерфейсов
+
+        :return: строка с путём
+        '''
+        return [self.__journal_file]
+
+    @property
+    def default_logging_level(self) -> str:
+        '''
+        Общий параметр
+        Отдаёт "дефолтный" уровень логирования в файл: 10 - DEBUG; 20 - INFO; 30 - WARNING; 40 - ERROR; 50 - CRITICAL
+
+        :return: число
+        '''
+        return self.__default_logging_level
+
+    @property
+    def _logger_mistakes(self) -> list:
+        '''
+        Общий параметр
+        Функция отдаёт ошибки, полученные при работе логера. Ошибки извлекаются через sys.exc_info().
+
+        :return: копия спискаошибок
+        '''
+        return self.__logger_mistakes.copy()
 
     # ---------------------------------------------------------------------------------------------
     # Функции логирования -------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     def to_log(self, message: str,
-               log_type: str = 'DEBUG',
-               child_module: str = None, function_name: str = None,
-               data: object = None,
-               log_to_file: bool = True,
-               miss: object = None,
+               logging_level: str = 'DEBUG',
+               logging_data: object = None,
+               exception_mistake: str = None,
+               traceback: list = None,
                **kwargs):
         '''
         Функция для отправки сообщений на сервер логирования.
 
         :param message: сообщение для логирования
-        :param log_type: тип сообщения в лог:
+        :param logging_level: тип сообщения в лог:
                                 DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
 
                                 INFO	Подтверждение того, что все работает, как ожидалось.
@@ -262,80 +177,37 @@ class LocalLoggerClient:
 
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
-        :param child_module: вызывающий подмодуль
-        :param function_name: имя вызывающей функции (func.__name__)
-        :param data: dto объект, который будет залогирован
+        :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
+            обрабатывающихся в скриптах.
+        :param exception_mistake: данные об ошибке. След ошибки передаётся в traceback
+        :param traceback: список строк следа вызова функции логирования или произошедшей ошибки
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
-        :param log_to_file: логирование в файл. Нужен для логирования ошибки записи в json (запрещать запись в json)
-        :param miss: ошибка, полученная при эксепшине
         :return: ничего
         '''
+        # Проверим: является ли уровень логирвоания разрешённым?
+        if logging_level != self.default_logging_level:  # Если это не дефолтный уровень
+            # Он должен быть правее дефолтного в self.__logging_levels
+            if logging_level not in self.__logging_levels[self.__logging_levels.index(logging_level):]:
+                return  # Не логируем
 
-        # Сделаем сообщение в логер
-        log_message = ''
-        if not child_module is None:  # Если есть "подмодуль"
-            log_message += child_module
-            if not function_name is None:  # Если есть ещё и имя функции
-                log_message += f'.{function_name}: '
-        elif not function_name is None:  # Если есть только имя функции
-            log_message += f'{function_name}: '
-        log_message += message  # Добавим само сообщение
-        self.__log_message(message=log_message, log_type=log_type)  # Отправим строку в лог
 
-        if log_to_file:  # Если пишем и в json
-            dto_dict = self.__prepare_logging_json(message=message, log_type=log_type,
-                                                   child_module=child_module, function_name=function_name,
-                                                   data=data,
-                                                   kwargs=kwargs)  # подготовим DTO
-
-            # Экспортим в файл
-            self.__log_to_json(dto_dict=dto_dict)
-
-        return
-
-    def __log_message(self, message: str,
-                      log_type: str = 'DEBUG',):
-        '''
-        Функция выполняет непосредственную запись в лог
-
-        :param message: сообщение для логирования
-        :param log_type: тип сообщения в лог:
-                                DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
-
-                                INFO	Подтверждение того, что все работает, как ожидалось.
-
-                                WARNING	Указание на то, что произошло что-то неожиданное или указание на проблему в
-                                        ближайшем будущем (например, «недостаточно места на диске»).
-                                        Программное обеспечение все еще работает как ожидалось.
-
-                                ERROR	Из-за более серьезной проблемы программное обеспечение
-                                        не может выполнять какую-либо функцию.
-
-                                CRITICAL	Серьезная ошибка, указывающая на то,
-                                        что сама программа не может продолжить работу.
-        :return: ничего
-        '''
-        if log_type == 'DEBUG':
-            self.__Logger.debug(message)
-        elif log_type == 'INFO':
-            self.__Logger.info(message)
-        elif log_type == 'ERROR':
-            self.__Logger.error(message)
-        elif log_type == 'WARNING':
-            self.__Logger.warning(message)
-        elif log_type == 'CRITICAL':
-            self.__Logger.critical(message)
+        # Получим словарь, который будет залогирован
+        logging_dto = self.__prepare_logging_json(message=message, logging_level=logging_level,
+                                                  logging_data=logging_data,
+                                                  exception_mistake=exception_mistake, traceback=traceback,
+                                                  kwargs=kwargs)  # Отправим строку в лог
+        # Отправим в файл
+        self.__log_to_json(dto_dict=logging_dto)
 
         return
 
     def __prepare_logging_json(self, message: str,
-                               log_type: str = 'DEBUG',
-                               child_module: str = None,
-                               function_name: str = None,
-                               data: object = None,
-                               kwargs: dict = None,
-                               miss: object = None) -> dict:
+                               logging_level: str = 'DEBUG',
+                               logging_data: object = None,
+                               exception_mistake: str = None,
+                               traceback: list = None,
+                               kwargs: dict = None) -> dict:
         '''
         Функция подготавливает DTO с данными для логирования
 
@@ -354,35 +226,29 @@ class LocalLoggerClient:
 
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
-        :param module: имя вызывающего модуля. Для логирования через основной, а не персональные логеры.
-        :param function_name: функция, которая делает обращение
-        :param data: словарь с данными, которые требуется залоггировать
+        :param logging_data: словарь с данными, которые требуется залоггировать
+        :param exception_mistake: данные об ошибке. След ошибки передаётся в traceback
+        :param traceback: список строк следа вызова функции логирования или произошедшей ошибки
         :param kwargs: словарь с данными, которые были переданы как "параметры". Он пришивается к data словрю
-        :param miss: ошибка, полученная в эксепшине
         :return: DTO в виде словаря
         '''
         logging_dto = {}  # DTO объект
         logging_dto['time'] = str(datetime.datetime.now())
-        logging_dto['log_type'] = log_type
-        logging_dto['module'] = self.__Logger.name
+        logging_dto['logging_level'] = self._choose_logging_level(logging_level=logging_level)
+        logging_dto['module'] = self.module_name
+
         logging_dto['message'] = message
-        logging_dto['function_name'] = function_name
-        logging_dto['child_module'] = child_module
 
-        log_data = {}
-        if isinstance(data, dict):  # Если подан словарь с данными
-            log_data.update(data)
-        if isinstance(kwargs, dict):
-            log_data.update(kwargs)
-        logging_dto['data'] = log_data
+        if exception_mistake is not None:
+            logging_dto['exception_mistake'] = exception_mistake
+        if traceback is not None:
+            logging_dto['traceback'] = traceback
 
-        logging_dto['miss'] = str(miss)  # Чтобы потом конвертнулось в json
+        if logging_data is not None:
+            logging_dto['logging_data'] = logging_data
 
-        trace = []
-        stack = traceback.extract_stack()[:-3] # -3, чтобы убрать функцию логирования, эту и "traceback"
-        for s in stack:
-            trace.append(s.name + ' -> ' + s.line)
-        logging_dto['trace'] = trace
+        if kwargs:  # Если словарь не пуст
+            logging_dto['additional_data'] = kwargs
 
         return logging_dto
 
@@ -394,14 +260,40 @@ class LocalLoggerClient:
         :return: ничего
         '''
         try:
-            with open(self.journals_catalog + self.journal_json_file, 'a') as write_file:  # Делаем экспорт
+            with open(self.journals_files[0], 'a') as write_file:  # Делаем экспорт
                 json.dump(dto_dict, write_file)
                 write_file.write('\n')
                 write_file.flush()
-        except BaseException as miss:
-            self.to_log(message=f'ошибка записи сообщения в файл: {miss}',
-                        function_name='__log_to_json',
-                        log_type='ERROR',
-                        log_to_file=False)
+        except BaseException as miss:  # При ошибке записи
+            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+
+            # Сбросим "неосновные" части сообщения, в которых вероятнее всего ошибка
+            logging_dto = {}  # DTO объект
+            logging_dto['time'] = dto_dict['time']
+            logging_dto['logging_level'] = dto_dict['logging_level']
+            logging_dto['module'] = dto_dict['module']
+            logging_dto['message'] = dto_dict['message']
+            logging_dto['logging_data'] = f'Ошибка отправки данных: {miss}'
+
+            try:  # Попробуем пихнуть основное сообщение
+                with open(self.journals_files[0], 'a') as write_file:  # Делаем экспорт
+                    json.dump(logging_dto, write_file)
+                    write_file.write('\n')
+                    write_file.flush()
+            except BaseException as miss:  # При ошибке записи
+                self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+
+                # Если опять упалоъ
+                logging_dto['message'] = f'Ошибка логирования основного сообщения: {miss}'
+                logging_dto['logging_level'] = 'ERROR'
+                try:  # Попробуем пихнуть основное сообщение
+                    with open(self.journals_files[0], 'a') as write_file:  # Делаем экспорт
+                        json.dump(logging_dto, write_file)
+                        write_file.write('\n')
+                        write_file.flush()
+                except BaseException:  # При ошибке записи
+                    self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+                    pass  # Если и это упало, то всё - пиши пропало
+
         return
 
