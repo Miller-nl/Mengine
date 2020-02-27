@@ -38,11 +38,7 @@ class FileConsoleLogger:
 
     __logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
-    __logging_levels = {'DEBUG': logging.DEBUG,
-                        'INFO': logging.INFO,
-                        'WARNING': logging.WARNING,
-                        'ERROR': logging.ERROR,
-                        'CRITICAL': logging.CRITICAL}
+    __logging_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
 
     def __init__(self,
                  module_name: str,
@@ -85,22 +81,22 @@ class FileConsoleLogger:
             # Модуль логирования всегда подключается в ините объектов.
             self.to_log(message='Инициализация объекта класса', log_type='DEBUG')
 
-    def _choose_logging_level(self, logging_level: str or int) -> int:
+    def _choose_logging_level(self, logging_level: str or int) -> str:
         '''
         Установление уровня логирования
 
         :param logging_level: уровень логирования.
-        :return: число, которое позволит установить уровень логгирования: 10 - DEBUG; 20 - INFO; 30 - WARNING;
-            40 - ERROR; 50 - CRITICAL. Если уровень логирования не опознан, вернётся "дефолтный" - указанный при
-            создании логера.
+        :return: строка с именем уровня логирования
+            10 - DEBUG; 20 - INFO; 30 - WARNING; 40 - ERROR; 50 - CRITICAL.
+            Если уровень логирования не опознан, вернётся "дефолтный" - указанный при создании логера.
         '''
-        try:
-            return self.__logging_levels[logging_level]
-        except KeyError:
-            if logging_level in [10, 20, 30, 40, 50]:
-                return logging_level
-            else:
-                return self.default_logging_level
+        if isinstance(logging_level, str):
+            if logging_level in self.__logging_levels:  # Првоерим по списку
+                return logging_level  # Если из списка - вернём как есть
+            return logging.getLevelName(logging_level)  # Иначе прогоним через "получение уровня"
+
+        else:  # Если задано число
+            return logging.getLevelName(logging_level)  # вернём строковый уровень
 
     def __set_logger(self, journals_catalog: str, journal_file: str or None,
                      file_logging_level: str = 'DEBUG',
