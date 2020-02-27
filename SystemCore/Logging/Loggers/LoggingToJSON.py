@@ -4,6 +4,8 @@ import datetime
 import os
 import sys
 
+from SystemCore.Logging.Loggers.СommonFunctions import prepare_exception_and_trace
+
 
 class JsonLogger:
     '''
@@ -16,9 +18,9 @@ class JsonLogger:
 
         module_name - имя модуля
 
-        journals_files - файл с журналом
-
         default_logging_level - уровень логирования поумолчанию
+
+        journals_files - файл с журналом
 
         to_log() - непосредственно функция для логирования
 
@@ -96,8 +98,9 @@ class JsonLogger:
         self.__journal_file = os.path.join(journals_catalog, journal_file)  # Забьём в полный путь
 
         try:
-            with open(self.__journal_file, "w", encoding="utf-8") as f:
-                pass
+            if not os.access(self.__journal_file, os.F_OK):  # Если файла нет, создадим
+                with open(self.__journal_file, "w", encoding="utf-8") as f:
+                    pass
         except FileNotFoundError:  # Если нет каталога
             self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
             return None
@@ -121,16 +124,6 @@ class JsonLogger:
         return self.__module_name
 
     @property
-    def journals_files(self) -> list:
-        '''
-        Общий параметр
-        Отдаёт полный путь к файлу лога. В виде списка - для единости интерфейсов
-
-        :return: строка с путём
-        '''
-        return [self.__journal_file]
-
-    @property
     def default_logging_level(self) -> str:
         '''
         Общий параметр
@@ -151,13 +144,26 @@ class JsonLogger:
         return self.__logger_mistakes.copy()
 
     # ---------------------------------------------------------------------------------------------
+    # Личные property -----------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    @property
+    def journals_files(self) -> list:
+        '''
+        Общий параметр
+        Отдаёт полный путь к файлу лога. В виде списка - для единости интерфейсов
+
+        :return: строка с путём
+        '''
+        return [self.__journal_file]
+
+    # ---------------------------------------------------------------------------------------------
     # Функции логирования -------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     def to_log(self, message: str,
                logging_level: str = 'DEBUG',
                logging_data: object = None,
-               exception_mistake: str = None,
-               traceback: list = None,
+               exception_mistake: tuple or bool = False,
+               trace: list or bool = False,
                **kwargs):
         '''
         Функция для отправки сообщений на сервер логирования.
@@ -179,34 +185,47 @@ class JsonLogger:
                                         что сама программа не может продолжить работу.
         :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
             обрабатывающихся в скриптах.
-        :param exception_mistake: данные об ошибке. След ошибки передаётся в traceback
-        :param traceback: список строк следа вызова функции логирования или произошедшей ошибки
+        :param exception_mistake: данные об ошибке. Или это tuple, полученный от sys.exc_info(), состоящий из
+            всех трёхэлементов, или указание на запрос ошибки внутри функции логирования.
+            Если этот параметр не False, то trace игнорируется
+        :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
+            следа внутри функции. Если задан exception_mistake, то trace игнорируется.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
         :return: ничего
         '''
+
+        # Скорректируем уровень лога, если нужно
+        if exception_mistake is not False:  # Если переданы данные об исключении
+            if logging_level in ['DEBUG', 'INFO']:  # Если уровень логирования низок
+                logging_level = 'WARNING'  # Ставим "WARNING", так как в общем случае exception не всегда ERROR
+
         # Проверим: является ли уровень логирвоания разрешённым?
         if logging_level != self.default_logging_level:  # Если это не дефолтный уровень
             # Он должен быть правее дефолтного в self.__logging_levels
             if logging_level not in self.__logging_levels[self.__logging_levels.index(logging_level):]:
                 return  # Не логируем
 
+        # Выполним развёртку exception_mistake и traceback
+        exception_mistake, trace = prepare_exception_and_trace(exception_mistake=exception_mistake, trace=trace)
+
 
         # Получим словарь, который будет залогирован
         logging_dto = self.__prepare_logging_json(message=message, logging_level=logging_level,
                                                   logging_data=logging_data,
-                                                  exception_mistake=exception_mistake, traceback=traceback,
+                                                  exception_mistake=exception_mistake, trace=trace,
                                                   kwargs=kwargs)  # Отправим строку в лог
         # Отправим в файл
         self.__log_to_json(dto_dict=logging_dto)
 
         return
 
+
     def __prepare_logging_json(self, message: str,
                                logging_level: str = 'DEBUG',
                                logging_data: object = None,
                                exception_mistake: str = None,
-                               traceback: list = None,
+                               trace: list = None,
                                kwargs: dict = None) -> dict:
         '''
         Функция подготавливает DTO с данными для логирования
@@ -227,8 +246,8 @@ class JsonLogger:
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
         :param logging_data: словарь с данными, которые требуется залоггировать
-        :param exception_mistake: данные об ошибке. След ошибки передаётся в traceback
-        :param traceback: список строк следа вызова функции логирования или произошедшей ошибки
+        :param exception_mistake: данные об ошибке. След ошибки передаётся в trace
+        :param trace: список строк следа вызова функции логирования или произошедшей ошибки
         :param kwargs: словарь с данными, которые были переданы как "параметры". Он пришивается к data словрю
         :return: DTO в виде словаря
         '''
@@ -241,8 +260,8 @@ class JsonLogger:
 
         if exception_mistake is not None:
             logging_dto['exception_mistake'] = exception_mistake
-        if traceback is not None:
-            logging_dto['traceback'] = traceback
+        if trace is not None:
+            logging_dto['traceback'] = trace
 
         if logging_data is not None:
             logging_dto['logging_data'] = logging_data
