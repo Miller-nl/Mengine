@@ -42,32 +42,26 @@ import json
 import datetime
 
 # Локальный клиент для логирования
-class LocalLoggerClient:
+class LoggerClient:
     '''
     Объект, использующийся для логирования данных.
-    Если объекту не указано в init-е, что модуль должен быть создан отдельный логгер, то объект для
-    логирования будет использовать уже существующий логер для одинаковых module_name.
+    Объект собирается в менеджере процессов, так как менеджер процесса знает и каталоги, ифайлы для логов, и базы данных
+        или сервера, на которые надо слать запросы с логированием. Если требуется отдельный логер, можно взять прямо
+        клиента.
 
-    Вывод данных в json файл  НЕ РАБОТАЕТ!! при инициализации ( не логгируется ТОЛЬКО сообщение создания логера)
+
+    Методы и свойства:
+
+
     '''
 
     def __init__(self,
                  module_name: str,
-                 log_initialization: bool = False,
-                 log_traceback: bool = False):
+                 log_initialization: bool = False):
         '''
         :param module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
-        :param journals_catalog: директория для ведения журнала. По дефолту определяется через файл с настройками
-        :param journal_file: файл для логирования
-        :param write_to_console: выводить сообщения и в журнал, и в консоль тоже? В функции логгирования есть
-            отдельная настройка этого параметра. Не обязательно использовать вывод сообщений в консоль для всего логера.
-        :param file_logging_level: Уровень логирования в фай (файл .log, в json уходит ВСЁ)
-        :param console_logging_level: Уровень логирования в консоль
-        :param parent_structure: Структурная часть, показывающая вызывающие модули: "A.B.C.текущий модуль"
-        :param log_initialization: логировать инициализацию? По дефолту - нет, чтобы не "срать" в лог.
-                                    Логгировать инициализацию ТОЛЬКО для основных модулей.
-        :param create_personal: параметр позволяет принудительно создавать отдельный логер объекту.
-                Не рекомендуется к использованию без особой нужды!
+        :param log_initialization: логировать инициализацию логеров? По дефолту - нет, чтобы не "срать" в лог.
+            Логгировать инициализацию стоит ТОЛЬКО для основных модулей.
         '''
 
 
@@ -93,91 +87,6 @@ class LocalLoggerClient:
             # Модуль логирования всегда подключается в ините объектов.
             self.to_log(message='Инициализация объекта класса', log_type='DEBUG')  # НЕ СРАБАТЫВАЕТ ВЫВОД В ФАЙЛ
 
-    # ---------------------------------------------------------------------------------------------
-    # Общие функции -------------------------------------------------------------------------------
-    # ---------------------------------------------------------------------------------------------
-    def _expand_exception_mistake(self, exception_mistake: tuple = None,
-                                  to_json: bool = False) -> str:
-        '''
-        Функция разворачивает tuple, полученный в try/except функцией sys.exc_info() в строку сообщения об ошибке
-            в виде обычной строки или json строки.
-
-        :param exception_mistake: ошибка, полученная при try except функцией sys.exc_info().
-                Структура tuple: (ErrorType, args, traceback)
-        :param to_json: перевести ли ошибку в json?
-        :return: строка форматного сообщения 'ErrorType: error message'
-        '''
-
-        if exception_mistake is None:
-            return 'Не передан exception_mistake'
-
-
-        # traceback.extract_tb(exc_info[2])
-
-        if to_json:  # Если конвертим в json строку
-            json_data = {'ERROR': f'{exception_mistake[0]}: {exception_mistake[1].args}'}
-            if self.log_traceback:  # Если логируем след
-                json_data['traceback'] = self._expand_traceback(trace=traceback.extract_tb(exception_mistake[2]),
-                                                                to_json=True)
-                return json.dumps(json_data)  # Дампнем и вернём
-
-        else:
-            export_string = f'{exception_mistake[0]}: {exception_mistake[1].args}'
-
-        return export_string
-
-    @staticmethod
-    def _get_traceback() -> list:
-        '''
-        Фукнция возвращяет набор объектов traceback.FrameSummary. Нужна для логгирование ошибок.
-        Структура элемента списка:
-            Для <FrameSummary file C:\Program Files\JetBrains\PyCharm Community Edition 2018.3.5\helpers\pydev\pydevconsole.py, line 386 in <module>>
-            .name = '<module>'
-            .filename = 'C:\\Program Files\\JetBrains\\PyCharm Community Edition 2018.3.5\\helpers\\pydev\\pydevconsole.py'
-            .line = 'pydevconsole.start_client(host, port)'
-            .lineno = 386
-            .locals = kjgahsdgf
-
-        :return: список "пути".
-        '''
-        trace = traceback.extract_stack()[:-1]  # -1 нужен чтобы убрать себя (_get_traceback) из следа
-        return trace
-
-    @staticmethod
-    def _expand_traceback(trace: list,
-                          to_json: bool = False) -> str:
-        '''
-        Разворачивает след в строку для сообщения или json
-
-        Структура объекта списка:
-            Для <FrameSummary file C:\Program Files\JetBrains\PyCharm Community Edition 2018.3.5\helpers\pydev\pydevconsole.py, line 386 in <module>>
-            .name = '<module>'
-            .filename = 'C:\\Program Files\\JetBrains\\PyCharm Community Edition 2018.3.5\\helpers\\pydev\\pydevconsole.py'
-            .line = 'pydevconsole.start_client(host, port)'
-            .lineno = 386
-            .locals = kjgahsdgf
-
-
-        :param trace: след, полученный через traceback.extract_stack(). Если список пуст, ответ будет пустой строкой.
-        :param to_json: конвертировать в json строку?
-        :return: строка в обычном или в json формате.
-        '''
-        if trace:
-            if to_json:  # Если в json
-                trace_str = []
-                for tr in trace:  # Погнали собирать
-                    trace_str.append(f'File: "{tr.filename}", in {tr.module} line {tr.lineno}: {tr.line}')
-                trace_str = json.dumps(trace_str)  # Конвертим
-                return trace_str
-            else:  # Если просто в строку
-                trace_str = ''
-                for tr in trace:  # Погнали собирать
-                    trace_str += f'File: "{tr.filename}", in {tr.module} line {tr.lineno}: {tr.line}; '
-                trace_str = trace_str[:-1]  # Дропнем последний пробел
-                return trace_str  # Просто загоняем след в строку
-
-        else:  # Если нет
-            return ''  # Пустая строка вернётся
 
 
     # ---------------------------------------------------------------------------------------------
@@ -192,14 +101,86 @@ class LocalLoggerClient:
         '''
         return self.__module_name
 
-    @property
-    def log_traceback(self) -> bool:
-        '''
-        Отдаёт статус необходимости логирования следа при получении ошибок.
+    # ---------------------------------------------------------------------------------------------
+    # Добавление логера ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    '''
+        :param journals_catalog: директория для ведения журнала. По дефолту определяется через файл с настройками
+        :param journal_file: файл для логирования
+        :param write_to_console: выводить сообщения и в журнал, и в консоль тоже? В функции логгирования есть
+            отдельная настройка этого параметра. Не обязательно использовать вывод сообщений в консоль для всего логера.
+        :param file_logging_level: Уровень логирования в фай (файл .log, в json уходит ВСЁ)
+        :param console_logging_level: Уровень логирования в консоль
+        :param parent_structure: Структурная часть, показывающая вызывающие модули: "A.B.C.текущий модуль"
+        
+        :param create_personal: параметр позволяет принудительно создавать отдельный логер объекту.
+                Не рекомендуется к использованию без особой нужды!
+    '''
 
-        :return: bool статус
+
+    # ---------------------------------------------------------------------------------------------
+    # Логирование ---------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    def to_log(self, message: str,
+               logging_level: str = 'DEBUG',
+               logging_data: object = None,
+               exception_mistake: tuple or bool = False,
+               trace: list or bool = False,
+               **kwargs):
         '''
-        return self.__log_traceback
+        Функция для отправки сообщений на сервер логирования.
+
+        :param message: сообщение для логирования
+        :param logging_level: тип сообщения в лог:
+                                DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
+
+                                INFO	Подтверждение того, что все работает, как ожидалось.
+
+                                WARNING	Указание на то, что произошло что-то неожиданное или указание на проблему в
+                                        ближайшем будущем (например, «недостаточно места на диске»).
+                                        Программное обеспечение все еще работает как ожидалось.
+
+                                ERROR	Из-за более серьезной проблемы программное обеспечение
+                                        не может выполнять какую-либо функцию.
+
+                                CRITICAL	Серьезная ошибка, указывающая на то,
+                                        что сама программа не может продолжить работу.
+        :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
+            обрабатывающихся в скриптах.
+        :param exception_mistake: данные об ошибке. Или это tuple, полученный от sys.exc_info(), состоящий из
+            всех трёхэлементов, или указание на запрос ошибки внутри функции логирования.
+            Если этот параметр не False, то trace игнорируется
+        :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
+            следа внутри функции. Если задан exception_mistake, то trace игнорируется.
+        :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
+            совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
+        :return: ничего
+        '''
+
+
+
+
+        return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -430,79 +411,5 @@ class LocalLoggerClient:
 
         return
 
-    def __prepare_logging_json(self, message: str,
-                               log_type: str = 'DEBUG',
-                               child_module: str = None,
-                               function_name: str = None,
-                               data: object = None,
-                               kwargs: dict = None,
-                               miss: object = None) -> dict:
-        '''
-        Функция подготавливает DTO с данными для логирования
 
-        :param message: сообщение для логирования
-        :param log_type: тип сообщения в лог:
-                                DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
-
-                                INFO	Подтверждение того, что все работает, как ожидалось.
-
-                                WARNING	Указание на то, что произошло что-то неожиданное или указание на проблему в
-                                        ближайшем будущем (например, «недостаточно места на диске»).
-                                        Программное обеспечение все еще работает как ожидалось.
-
-                                ERROR	Из-за более серьезной проблемы программное обеспечение
-                                        не может выполнять какую-либо функцию.
-
-                                CRITICAL	Серьезная ошибка, указывающая на то,
-                                        что сама программа не может продолжить работу.
-        :param module: имя вызывающего модуля. Для логирования через основной, а не персональные логеры.
-        :param function_name: функция, которая делает обращение
-        :param data: словарь с данными, которые требуется залоггировать
-        :param kwargs: словарь с данными, которые были переданы как "параметры". Он пришивается к data словрю
-        :param miss: ошибка, полученная в эксепшине
-        :return: DTO в виде словаря
-        '''
-        logging_dto = {}  # DTO объект
-        logging_dto['time'] = str(datetime.datetime.now())
-        logging_dto['log_type'] = log_type
-        logging_dto['module'] = self.__Logger.name
-        logging_dto['message'] = message
-        logging_dto['function_name'] = function_name
-        logging_dto['child_module'] = child_module
-
-        log_data = {}
-        if isinstance(data, dict):  # Если подан словарь с данными
-            log_data.update(data)
-        if isinstance(kwargs, dict):
-            log_data.update(kwargs)
-        logging_dto['data'] = log_data
-
-        logging_dto['miss'] = str(miss)  # Чтобы потом конвертнулось в json
-
-        trace = []
-        stack = traceback.extract_stack()[:-3] # -3, чтобы убрать функцию логирования, эту и "traceback"
-        for s in stack:
-            trace.append(s.name + ' -> ' + s.line)
-        logging_dto['trace'] = trace
-
-        return logging_dto
-
-    def __log_to_json(self, dto_dict: dict):
-        '''
-        Функция логирует в json файл.
-
-        :param dto_dict: словарь-DTO, который уйдёт в файл в качестве json объекта
-        :return: ничего
-        '''
-        try:
-            with open(self.journals_catalog + self.journal_json_file, 'a') as write_file:  # Делаем экспорт
-                json.dump(dto_dict, write_file)
-                write_file.write('\n')
-                write_file.flush()
-        except BaseException as miss:
-            self.to_log(message=f'ошибка записи сообщения в файл: {miss}',
-                        function_name='__log_to_json',
-                        log_type='ERROR',
-                        log_to_file=False)
-        return
 
