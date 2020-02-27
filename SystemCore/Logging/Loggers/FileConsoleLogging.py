@@ -283,7 +283,6 @@ class FileConsoleLogger:
     def to_log(self, message: str,
                logging_level: str = 'DEBUG',
                exception_mistake: tuple or bool = False,
-               trace: list or bool = False,
                **kwargs):
         '''
         Функция для отправки сообщений лог.
