@@ -22,7 +22,7 @@ class JsonLogger:
 
         journals - список с данными о журналах
 
-        _logger_mistakes - список ошибок, полученных при работе логера
+        _mistakes - список ошибок, полученных при работе логера
 
 
         journals_files - файл с журналом
@@ -54,7 +54,7 @@ class JsonLogger:
         self.__module_name = module_name  # Имя модуля
         self.__default_logging_level = self._choose_logging_level(logging_level=logging_level)  # Установим уровень лога
 
-        self.__logger_mistakes = []  # Список ошибок логера (как лог логера)
+        self.__mistakes = []  # Список ошибок логера (как лог логера)
 
         # Создадим файл журнала если его нет
         self.__prepare_file(journals_catalog=journals_catalog, journal_file=journal_file)
@@ -105,10 +105,10 @@ class JsonLogger:
                 with open(self.__journal_file, "w", encoding="utf-8") as f:
                     pass
         except FileNotFoundError:  # Если нет каталога
-            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+            self.__mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
             return None
         except OSError:  # Если косячное имя файла
-            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+            self.__mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
             return None
 
         return True  # Если всё ок
@@ -137,14 +137,14 @@ class JsonLogger:
         return self.__default_logging_level
 
     @property
-    def _logger_mistakes(self) -> list:
+    def _mistakes(self) -> list:
         '''
         Общий параметр
         Функция отдаёт ошибки, полученные при работе логера. Ошибки извлекаются через sys.exc_info().
 
         :return: копия спискаошибок
         '''
-        return self.__logger_mistakes.copy()
+        return self.__mistakes.copy()
 
     @property
     def journals(self) -> list:
@@ -297,7 +297,7 @@ class JsonLogger:
                 write_file.write('\n')
                 write_file.flush()
         except BaseException as miss:  # При ошибке записи
-            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+            self.__mistakes.append(sys.exc_info())  # Список ошибок логера
 
             # Сбросим "неосновные" части сообщения, в которых вероятнее всего ошибка
             logging_dto = {}  # DTO объект
@@ -313,7 +313,7 @@ class JsonLogger:
                     write_file.write('\n')
                     write_file.flush()
             except BaseException as miss:  # При ошибке записи
-                self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+                self.__mistakes.append(sys.exc_info())  # Список ошибок логера
 
                 # Если опять упалоъ
                 logging_dto['message'] = f'Ошибка логирования основного сообщения: {miss}'
@@ -324,7 +324,7 @@ class JsonLogger:
                         write_file.write('\n')
                         write_file.flush()
                 except BaseException:  # При ошибке записи
-                    self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера
+                    self.__mistakes.append(sys.exc_info())  # Список ошибок логера
                     pass  # Если и это упало, то всё - пиши пропало
 
         return

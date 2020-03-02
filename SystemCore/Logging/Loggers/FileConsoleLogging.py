@@ -31,7 +31,7 @@ class FileConsoleLogger:
         to_log() - непосредственно функция для логирования
 
 
-        _logger_mistakes - список ошибок, полученных при работе логера
+        _mistakes - список ошибок, полученных при работе логера
 
         _get_handlers - отдаёт все хэндлеры логера
 
@@ -64,7 +64,7 @@ class FileConsoleLogger:
         '''
 
         self.__module_name = module_name  # Имя модуля
-        self.__logger_mistakes = []  # Список ошибок логера (как лог логера)
+        self.__mistakes = []  # Список ошибок логера (как лог логера)
 
 
         self.__default_logging_level = self._choose_logging_level(logging_level=file_logging_level)
@@ -159,14 +159,14 @@ class FileConsoleLogger:
         return self.__default_logging_level
 
     @property
-    def _logger_mistakes(self) -> list:
+    def _mistakes(self) -> list:
         '''
         Общий параметр
         Функция отдаёт ошибки, полученные при работе логера. Ошибки извлекаются через sys.exc_info().
 
         :return: копия спискаошибок
         '''
-        return self.__logger_mistakes.copy()
+        return self.__mistakes.copy()
 
     @property
     def journals(self) -> list:
@@ -268,7 +268,7 @@ class FileConsoleLogger:
         try:
             File_handler = logging.FileHandler(os.path.join(journals_catalog, journal_file))  # Создадим FileHandler
         except OSError:  # Если имя файла недопустимо
-            self.__logger_mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+            self.__mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
             self.to_log(message=(f'Провалена попытка добаления FileHandler логеру "{self.module_name}" ' +
                                  f' с файлом: {os.path.join(journals_catalog, journal_file)}. ' +
                                  'Имя файла недопустимо'),
