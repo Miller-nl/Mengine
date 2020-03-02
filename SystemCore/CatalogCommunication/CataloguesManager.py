@@ -17,7 +17,7 @@ class CatalogsManager:
     Модуль для работы с каталогами. Его задача: создать схему каталогов и обсепечить работу с ней.
 
     Структура каталогов:
-    "Основной каталог" -> "Каталог процесса" (по имени процесса) -> Подкаталог сессии (session_subdirectory) ->
+    "Родительский каталог" -> "Каталог процесса" (по имени процесса) -> Подкаталог сессии (session_subdirectory) ->
         Папки для данных -> Файлы  или (Подкаталоги модулей сессии -> Файлы)
 
     Данные хранятся в объекте "configparser", при этом дефолтное значение секции хранится на опции "__section_path_name"
@@ -31,34 +31,66 @@ class CatalogsManager:
 
         Добавить функцию "запросить файлы"
 
+    Важно, что при добавлении каталогов для секций и опций не производится проверка существования каталогов, то есть:
+        несколько процессов или запусков могут работать в одной и директории с одинаковыми папками. Это сделано для
+        универсальности.
 
     Методы и свойства
+        process_name - имя процесса
 
+        parent_directory - "родительская" директория (в подкаталоге которой развёрнута структура)
+
+        main_process_path - "основной" каталог (в котором развёрнута структура папок). Заведён по имени процесса.
+
+        session_path - подкаталог, отвечающий конкретному запуску. Может совпадать с main_process_path
+
+
+        sections - список названий секций
+
+        check_section() - проверка существования секции
+
+        get_section_path() - получение абсолютного каталога секции
+
+        add_section() - добавление секции
+
+        del_section() - удаление секции
+
+
+        get_options() - получение опций секции
+
+        check_option() - проверка наличия опции
+
+        get_option_path() - получение абсолютного каталога опции
+
+        add_option() - добавление опции
+
+        del_option() - удаление опции
+
+
+        get_files_list() - получение списка файлов в секции или опции
 
 
         _mistakes - список ошибок, полученных при работе с каталогами (.append(sys.exc_info()))
-            #
-
 
     '''
 
     __section_path_name = 'section_path'  # Название опции с основным каталогом секции
 
-
     def __init__(self,
                  process_name: str,
                  parent_directory: str = None,
-                 session_subdirectory: str = None):
+                 session_subdirectory: str or bool = True):
         '''
 
         :param process_name: имя процесса. Именно по нему будет сгенерирован "основной подкаталог".
         :param main_path: основной каталог с данными. В нём будет создан подкаталог для процесса "process_name"
             процесса, в подкаталоге которого процесс будет хранить свои данные.
             Значение 'default' значит, что будет использован main_files_catalog, указанный в файле с менеджером.
-        :param session_subdirectory: подкаталог main_process_path, в котором будет разворачиватсья стандартная схема папок для
-            данной сессии процесса process_name.
-            Это удобно для разделения данных от разных запусков модуля и тестирования. Если не задан - берётся
-            "дата + время" запуска.
+        :param session_subdirectory: подкаталог main_process_path, в котором будет разворачиватсья стандартная схема
+            папок для данной сессии процесса process_name. Это удобно для разделения данных от разных запусков модуля
+            и тестирования.
+            Если не задан в виде строки, то при true берётся "дата + время" запуска, при false - работаем прямо в
+                main_process_path, без подкаталога для запуска.
         '''
 
         self.__mistakes = []  # свой список ошибок
@@ -71,37 +103,18 @@ class CatalogsManager:
         parent_directory = os.path.abspath(parent_directory)  # Форматнём путь
         self.__main_path = os.path.join(parent_directory, process_name)  # Установим "основной каталог" процесса
 
-        if session_subdirectory is None:  # если не задано
+        if session_subdirectory is True:  # если берём "время"
             session_subdirectory = str(datetime.datetime.now()).replace(':', ';')  # Установим по времени запуска
+        elif session_subdirectory is False:  # если работаем без подкаталога для сессии
+            session_subdirectory = None
         self.__session_subdirectory = session_subdirectory
 
         # Объект для хранения секций (основных подкаталогов) и опций (подкаталогов секций)
         self.__config = configparser.ConfigParser()
 
+        self.__prepare_main_catalogs()  # подготовим основные каталоги
 
-
-
-
-
-
-
-
-
-        #config.sections()
-
-        # os.path.join()
-
-
-
-        # Создадим глвный каталог
-        self.__main_path = self.__create_process_path(main_path=main_path, subdirectory=session_subdirectory)
-
-        # Заведём файл с настроками каталогов
-        self.__catalogs = configparser.ConfigParser()
-        self.__catalogs.read_dict(data_catalogs)  # Скормим в конфиг каталоги из словаря
-        self.__catalogs_preparation()  # Воспроизведём каталоги конфига
-
-    def __perpare_main_catalogs(self):
+    def __prepare_main_catalogs(self):
         '''
         Задача функции: проверить существование основных каталогов и, если потребуется, воспроизвести их.
 
@@ -147,11 +160,15 @@ class CatalogsManager:
     @property
     def session_path(self) -> str:
         '''
-        Полный путь к подкаталогу, в котором хранятся данные текущей сессии: файлы и папки сессий
+        Полный путь к подкаталогу, в котором хранятся данные текущей сессии: файлы и папки сессий. Если он не был
+            задан отдельно при запуске, то session_path совпадёт с main_process_path.
 
         :return: строка - путь
         '''
-        return os.path.join(self.main_process_path, self.__session_subdirectory)
+        if self.__session_subdirectory is None:
+            return self.main_process_path
+        else:
+            return os.path.join(self.main_process_path, self.__session_subdirectory)
 
     @property
     def _mistakes(self) -> list:
@@ -218,7 +235,7 @@ class CatalogsManager:
         '''
         return self.__config.sections()
 
-    def get_section_path(self, section_name: str) -> str or None:
+    def get_section_path(self, section_name: str or int) -> str or None:
         '''
         Функция отдаёт каталог сеции.
 
@@ -232,7 +249,7 @@ class CatalogsManager:
             return os.path.join(self.session_path, self.__config.get(section=section_name,
                                                                      option=self.__section_path_name))
 
-    def check_section(self, section_name: str) -> bool:
+    def check_section(self, section_name: str or int) -> bool:
         '''
         Функция проверяет, есть ли соответствующая секция
 
@@ -241,7 +258,7 @@ class CatalogsManager:
         '''
         return self.__config.has_section(section_name)
 
-    def add_section(self, section_name: str,
+    def add_section(self, section_name: str or int,
                     section_folder: str = None) -> bool or None:
         '''
         Функция добавляет секцию в набор каталогов. Если секция есть, её "переименовывание" запрещено во избежание
@@ -252,7 +269,7 @@ class CatalogsManager:
         :return: True - секции не было, добавлена False - секция или папка есть; None - ошибка.
         '''
         if section_folder is None:  # Если папка не задана
-            section_folder = section_name  # Берём имя за каталог
+            section_folder = str(section_name)  # Берём имя за каталог
 
         if self.check_section(section_name=section_name):  # Если секция есть
             return False  # Вернём статус
@@ -268,7 +285,7 @@ class CatalogsManager:
                 self.__mistakes.append(sys.exc_info())  # Логируем
                 return None
 
-    def del_section(self, section_name: str,
+    def del_section(self, section_name: str or int,
                     clear_disc: bool = False) -> bool or None:
         '''
         Функция удаляет секцию.
@@ -297,7 +314,7 @@ class CatalogsManager:
     # ------------------------------------------------------------------------------------------------
     # Работа с опциями -------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    def get_options(self, section_name: str) -> list or None:
+    def get_options(self, section_name: str or int) -> list or None:
         '''
         Функция отдаёт список опций секции. Если опций нет, то список будет пуст.
         Если указана несуществующия секция - функция сообщит об ошибке.
@@ -310,7 +327,7 @@ class CatalogsManager:
         except configparser.NoSectionError:
             return None
 
-    def check_option(self, section_name: str, option_name: str) -> bool or None:
+    def check_option(self, section_name: str or int, option_name: str or int) -> bool or None:
         '''
         Проверка наличия опции.
 
@@ -323,7 +340,7 @@ class CatalogsManager:
         else:  # Если она есть
             return self.__config.has_option(section=section_name, option=option_name)  # отдаём статус опции
 
-    def get_option_path(self, section_name: str, option_name: str) -> str or None:
+    def get_option_path(self, section_name: str or int, option_name: str or int) -> str or None:
         '''
         Функция отдаёт каталог опции.
 
@@ -339,7 +356,7 @@ class CatalogsManager:
         else:  # Если нет секции или опции
             return None
 
-    def add_option(self, section_name: str, option_name: str,
+    def add_option(self, section_name: str or int, option_name: str or int,
                    option_folder: str = None) -> bool or None:
         '''
         Функция добавляет опцию в соответствующую секцию
@@ -351,7 +368,7 @@ class CatalogsManager:
             None - ошибка (в том числе - "отсутствует секция")
         '''
         if option_folder is None:  # Если нет подкаталога
-            option_folder = option_name
+            option_folder = str(option_name)
 
         check_option = self.check_option(section_name=section_name, option_name=option_name)  # Проверим наличие секции
         if check_option is False:  # Если опция есть, а секции нет
@@ -364,7 +381,7 @@ class CatalogsManager:
         else:  # если там None (нет секции)
             return None  # вернём статус
 
-    def del_option(self, section_name: str, option_name: str,
+    def del_option(self, section_name: str or int, option_name: str or int,
                    clear_disc: bool = False) -> bool or None:
         '''
         Удаление опции, включая все файлы в ней!
@@ -400,273 +417,32 @@ class CatalogsManager:
     # ------------------------------------------------------------------------------------------------
     # Получить список файлов -------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    '''
-    Сделать параметры "Секция" и "Опция" = None. Если опция не задана, обрабатывается секция.
-    
-    Это функции "для удобства"
-    
-    Получения подкаталогов не надо! Только файлы
-    '''
-    def get_files_list(self, section_name: str) -> str or None:
+    def get_files_list(self, section_name: str or int,
+                       option_name: str or int = None,
+                       full_path: bool = True) -> str or None:
         '''
-        Функция отдаёт каталог сеции.
+        Функция отдаёт список имён файлов сеции, если не задана опция. Если опция указана, отдаются файлы из опции.
 
         :param section_name: имя секции
-        :return: полный путь или None, если нет запрошенной секции.
+        :param option_name: имя опции. Если не задано, берутся
+        :param full_path: регулирует, в каком виде имена попадут в экспорт: полный путь (true)
+            или только имя файла (false)
+        :return: список имён файлов; None - если нет секции/опции/не существует каталог.
         '''
-        return
+        if option_name is None:
+            path = self.get_section_path(section_name=section_name)
+        else:
+            path = self.get_option_path(section_name=section_name, option_name=option_name)
 
-
-
-    # ------------------------------------------------------------------------------------------------
-    # Получить файлы ---------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    @property
-    def sub_catalogs(self) -> configparser.ConfigParser:
-        '''
-        Функция отдаёт ссылку на объект с настройками подкаталогов.
-
-        :return:
-        '''
-        return self.__catalogs
-
-    # ------------------------------------------------------------------------------------------------
-    # Работа с каталогами ----------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    def get_catalog(self, name: str) -> str:
-        '''
-        Отдаёт "основной каталог" каталог
-        :param name:
-        :return:
-        '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # ------------------------------------------------------------------------------------------------
-    # "Удобный" доступ к подкаталогам ----------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    def logging_catalog(self, name: str = None) -> str or None:
-        '''
-        Функция отдаёт каталоги логгирования.
-
-        :param name: имя подкаталога. Если не задано, берётся "основной". Вообще это "опция".
-        :return: строка с полным путём или None
-        '''
-        if name is None:
-            name = 'main'
-        return self.get_subdirectory(section='logging', option=name)
-
-    def data_catalog(self, name: str = None) -> str or None:
-        '''
-        Функция отдаёт каталоги для хранения данных.
-
-        :param name: имя подкаталога. Если не задано, берётся "основной". Вообще это "опция".
-        :return: строка с полным путём или None
-        '''
-        if name is None:
-            name = 'main'
-        return self.get_subdirectory(section='data', option=name)
-
-    def sql_catalog(self, name: str = None) -> str or None:
-        '''
-        Функция отдаёт каталоги для хранения данных о запросах и таблицах.
-
-        :param name: имя подкаталога. Если не задано, берётся "основной". Вообще это "опция". Доступны:
-            failed_requests - "упавшие запросы";
-            saved - "сохранённые данные".
-        :return: строка с полным путём или None
-        '''
-        if name is None:
-            name = 'main'
-        return self.get_subdirectory(section='sql', option=name)
-
-    def emergency_save(self, name: str = None) -> str or None:
-        '''
-        Функция отдаёт каталоги для сохранения данных в виде DO в случае критических ошибок при работе с большими
-            объймами.
-
-        :param name: имя подкаталога. Если не задано, берётся "основной". Вообще это "опция".
-        :return: строка с полным путём или None
-        '''
-        if name is None:
-            name = 'main'
-        return self.get_subdirectory(section='emergency_save', option=name)
-
-    # ------------------------------------------------------------------------------------------------
-    # Преднастройка ----------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    def __create_catalog(self, catalog: str) -> bool or None:
-        '''
-        Функция "добавляет" каталог для работы. Нужна для общности и упращения правок при изменении этого
-        процесса.
-
-        :param catalog: адрес каталога
-        :return: был ли создан каталог? True - да, каталог был добавлен? False - нет, каталог уже был,
-            None - ошибка.
-        '''
-        try:
-            if not os.access(catalog, mode=os.F_OK):  # Если каталога нет
-                os.makedirs(catalog)  # Создадим
-                return True
-            else:
-                return False  # Если каталог был - вернём это
-        except BaseException:
+        if path is None:  # если у нас ошибка получения каталога
             return None
 
-    def __create_process_path(self, main_path: str,
-                              subdirectory: str = None) -> str or None:
-        '''
-        Функция создаёт "основной" подкаталог и возвращает его для установки в self.__main_path
-
-        :param main_path: каталог для процесса. Значение 'default' значит, что он будет получен из Catalogs
-        :param subdirectory: подкаталог, в котором будет разворачиватсья стандартная схема папок.
-            Например, для тестирования.
-        :return: ничего
-        '''
-        # Установим основной каталог
-        if main_path == 'default':  # Если требуется получить дефльтный каталог
-            main_path = main_files_catalog  # установим дефолтный каталог
-
-        if not main_path.endswith('/'):  # Добавим слеш в конец
-            main_path += '/'
-
-        if subdirectory is None:  # Если подкаталог не задан
-            subdirectory = ''
-        else:  # Если задан
-            if subdirectory.startswith('/'):
-                subdirectory = subdirectory[1:]
-            if not subdirectory.endswith('/'):
-                subdirectory += '/'
-
-        main_path = main_path + subdirectory + self.process_name  # Установим каталог для данного процесса
-        if not main_path.endswith('/'):  # Добавим "слеш"
-            main_path += '/'
-
-        add_result = self.__create_catalog(catalog=main_path)  # Добавим каталог
-        if isinstance(add_result, bool):  # Если каталог есть
-            return main_path  # вернём
-        else:  # Если это None
-            return None  # Вернём "ошибку"
-
-    def __catalogs_preparation(self):
-        '''
-        Функция воспроизводит систему подкаталогов внутри self.__main_path по self.__catalogs
-
-        :return: ничего
-        '''
-        sections = self.__catalogs.sections()  # Берём "секции"
-        for section in sections:  # Воспроизводим каталоги секций
-            options = self.__catalogs.options(section)  # Берём опции секции
-            for option in options:
-                sub_dir = self.__catalogs.get(section=section, option=option)  # берём подкаталог
-                # Отправляем в добавление
-                self.__create_catalog(catalog=self.main_process_path + sub_dir)
-
-        return
-
-    # ------------------------------------------------------------------------------------------------
-    # Создание и получение каталогов -----------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-
-    # Проверить директорию - в системе.
-
-    # Создать директорию, если её нет
-
-
-    def add_subdirectory(self, catalog: str,
-                         section: str,
-                         option: str,
-                         replace: bool = False) -> bool or None:
-        '''
-        Функция добавляет каталог во внутренний объект и создаёт его. Замены нет.
-
-        :param catalog: Полный путь подкаталога, включая все его директории, кроме основной: self. main_process_path
-        :param section: "секция" подкаталога (смысловая часть), как "logging", "sql" и прочие.
-        :param option: "опция" - навзание подкаталога внутри его секции.
-        :param replace: заменить ли имеющееся значение опции?
-        :return: True - если новое значение было установлено без проблем, False - если опция секции была уже занята.
-            None - при критической ошибке.
-        '''
-        # Предподготовим catalog
-        if not catalog.endswith('/'):  # Если нет нужной "концовки"
-            catalog += '/'  # Добавим
-        if catalog.startswith('/'):  # Если начинается "неверно"
-            catalog = catalog[1:]  # срежем
-
-        # Проверим наличие секции
-        try:
-            self.__catalogs.add_section(section)  # Пробуем добавить секцию
-        except configparser.DuplicateSectionError:  # ошибка "секция есть"
-            pass  # добавлять ничего не надо
-
-        # Проверим опцию
-        result = True
-        try:
-            a = self.__catalogs.get(section=section, option=option)  # Пробуем получить опцию
-            # Если секция есть
-
-            if a == catalog:  # Если каталоги совпали
-                return True  # Вернём,что всё ок
-
-            elif replace:  # Если замена разрешена
-                result = False  # Ставим, что "опция" была уже
-                self.__catalogs.remove_option(section=section, option=option)
-            else:
-                return False  # Если замена не разрешена, верёнм "ошибку"
-            #catalogs.remove_section()
-        except configparser.NoOptionError:  # Если нет опции такой
-            pass  # Чилим
-
-        # Добавим опцию
-        self.__catalogs.set(section=section, option=option, value=catalog)
-        # и заведём каталог
-        add_result = self.__create_catalog(self.main_process_path + catalog)  # Добавим каталог
-        if add_result is None:  # Если была ошибка
-            return None  # Вернём ошибку
-        else:  # Если каталог есть
-            return result  # верёнм результат
-
-    def get_subdirectory(self, section: str,
-                         option: str,) -> str or None:
-        '''
-        Функция выдаёт полный путь в подкаталог по catalog_index, если он есть.
-        :param section: "секция" подкаталога (смысловая часть), как "logging", "sql" и прочие.
-        :param option: "опция" - навзание подкаталога внутри его секции.
-        :return: подкаталог, если он есть или был создан, или None, если его нет и он не был создан.
-        '''
-        try:
-            return self.main_process_path + self.__catalogs.get(section=section, option=option)
-        except BaseException:  # Если нет секции или опции
-            return None  # результат - нет подкаталога
-
+        export_list = []  # экспортынй лист
+        for element in os.listdir(path=path):
+            element_path = os.path.join(path, element)  # Делаем абсолютный путь
+            if os.path.isfile(element_path):  # Если это файл
+                if full_path:  # если берём полный путь
+                    export_list.append(element_path)
+                else: # или берём только имя
+                    export_list.append(element)
+        return export_list  # отдаём результат
