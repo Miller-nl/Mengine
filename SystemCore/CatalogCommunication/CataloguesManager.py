@@ -124,8 +124,8 @@ class CatalogsManager:
         if not os.access(self.main_process_path, mode=os.F_OK):  # Создадим основной каталог модуля, если его нет
             os.makedirs(self.main_process_path)
 
-        if not os.access(self.main_process_path, mode=os.F_OK):  # Создадим каталог сесси, если его нет
-            os.makedirs(self.main_process_path)
+        if not os.access(self.session_path, mode=os.F_OK):  # Создадим каталог сесси, если его нет
+            os.makedirs(self.session_path)
         return
 
     # ------------------------------------------------------------------------------------------------
@@ -275,12 +275,15 @@ class CatalogsManager:
             return False  # Вернём статус
         else:  # Если секции нет
             try:
-                if not os.access(self.main_process_path, mode=os.F_OK):  # Создадим каталог секции, если его нет
-                    os.makedirs(self.main_process_path)
+                section_path = os.path.join(self.session_path, section_folder)
+
+                if not os.access(section_path, mode=os.F_OK):  # Создадим каталог секции, если его нет
+                    os.makedirs(section_path)
 
                 self.__config.add_section(section_name)  # Создаём секцию в настройках
                 self.__config.set(section=section_name, option=self.__section_path_name,
                                   value=section_folder)  # Ставим каталог
+                return True
             except BaseException:  # если был косяк
                 self.__mistakes.append(sys.exc_info())  # Логируем
                 return None
@@ -372,8 +375,18 @@ class CatalogsManager:
 
         check_option = self.check_option(section_name=section_name, option_name=option_name)  # Проверим наличие секции
         if check_option is False:  # Если опция есть, а секции нет
-            self.__config.set(section=section_name, option=option_name, value=option_folder)  # Создадим секцию
-            return True  # Закончим, вернув статус успешности
+
+            try:
+                option_path = os.path.join(self.session_path, self.get_section_path(section_name=section_name),
+                                           option_folder)
+                if not os.access(option_path, mode=os.F_OK):  # Создадим каталог опции, если его нет
+                    os.makedirs(option_path)
+                self.__config.set(section=section_name, option=option_name, value=option_folder)  # Создадим опцию
+                return True  # Закончим, вернув статус успешности
+
+            except BaseException:  # если был косяк
+                self.__mistakes.append(sys.exc_info())  # Логируем
+                return None
 
         elif check_option is True:  # Если опция есть
             return False  # вернём статус
