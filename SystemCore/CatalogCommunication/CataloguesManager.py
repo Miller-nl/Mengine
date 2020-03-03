@@ -302,8 +302,8 @@ class CatalogsManager:
         if not self.__config.has_section(section_name):  # Если секции нет
             return False  # Вернём статус
         elif clear_disc:  # Если секция есть и диск чистим
-            # Делаем удаление
-            result = self.__drop_directory(directory=self.get_section_path(section_name=section_name))
+            section_path = self.get_section_path(section_name=section_name)
+            result = self.__drop_directory(directory=section_path)  # Делаем удаление
 
             if result is None:  # если были ошибки
                 return None
