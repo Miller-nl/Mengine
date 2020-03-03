@@ -5,9 +5,6 @@ import configparser
 import datetime
 
 
-from SystemCore.CatalogCommunication.DefoultCatalogs import main_files_catalog
-
-
 # https://docs.python.org/3.5/library/os.path.html#os.path.abspath
 
 
