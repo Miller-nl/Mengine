@@ -5,7 +5,7 @@ import configparser
 import datetime
 
 
-from SystemCore.CatalogCommunication.DefoultCatalogs import main_files_catalog, data_catalogs
+from SystemCore.CatalogCommunication.DefoultCatalogs import main_files_catalog
 
 
 # https://docs.python.org/3.5/library/os.path.html#os.path.abspath
@@ -78,14 +78,13 @@ class CatalogsManager:
 
     def __init__(self,
                  process_name: str,
-                 parent_directory: str = None,
+                 parent_directory: str,
                  session_subdirectory: str or bool = True):
         '''
 
         :param process_name: имя процесса. Именно по нему будет сгенерирован "основной подкаталог".
         :param main_path: основной каталог с данными. В нём будет создан подкаталог для процесса "process_name"
             процесса, в подкаталоге которого процесс будет хранить свои данные.
-            Значение 'default' значит, что будет использован main_files_catalog, указанный в файле с менеджером.
         :param session_subdirectory: подкаталог main_process_path, в котором будет разворачиватсья стандартная схема
             папок для данной сессии процесса process_name. Это удобно для разделения данных от разных запусков модуля
             и тестирования.
@@ -98,8 +97,6 @@ class CatalogsManager:
         self.__process_name = process_name
         self.__parent_directory = parent_directory
 
-        if parent_directory is None:
-            parent_directory = main_files_catalog  # Берём импортнутый каталог
         parent_directory = os.path.abspath(parent_directory)  # Форматнём путь
         self.__main_path = os.path.join(parent_directory, process_name)  # Установим "основной каталог" процесса
 
