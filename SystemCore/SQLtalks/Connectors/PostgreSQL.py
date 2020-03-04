@@ -3,7 +3,89 @@
 import psycopg2
 import time
 
-from SystemCore.Managers.ProcessesManager import ProcessesManager
+
+class ConnectionData:
+    '''
+    Объект, хранящий данные для подключения
+    '''
+    def __init__(self, base_name: str,
+                 host: str, port: str,
+                 user: str, password: str):
+
+        self.__base_name = base_name
+        self.__host = host
+        self.__port = str(port)
+        self.__user = user
+        self.__password = password
+
+    # ------------------------------------------------------------------------------------------------
+    # Доступы ----------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
+    @property
+    def base_name(self) -> str:
+        '''
+        Имя базы
+
+        :return:
+        '''
+        return self.__base_name
+
+    @property
+    def host(self) -> str:
+        '''
+        Хост
+
+        :return:
+        '''
+        return self.__host
+
+    @property
+    def port(self) -> str:
+        '''
+        Порт в виде строки
+
+        :return:
+        '''
+        return self.__port
+
+    @property
+    def user(self) -> str:
+        '''
+        имя пользователя
+
+        :return:
+        '''
+        return self.__user
+
+    @property
+    def password(self) -> str:
+        '''
+        пароль
+
+        :return:
+        '''
+        return self.__password
+
+
+    @property
+    def server(self) -> str:
+        '''
+        Отдаёт хост и порт
+
+        :return: "хост:порт"
+        '''
+        return f'{self.host}:{self.port}'
+
+    @property
+    def authorization(self) -> str:
+        '''
+        Отдаёт пользователя и пароль
+
+        :return: "пользователь:пароль"
+        '''
+        return f'{self.user}:{self.password}'
+
+
 
 
 # ------------------------------------------------------------------------------------------------
@@ -12,29 +94,57 @@ from SystemCore.Managers.ProcessesManager import ProcessesManager
 class PostgreSQLconnector:
     '''
     Модуль для обращения в PostgerSQL базу.
-    Объект получает данные для авторизации в базу и реализует "стандартные методы":
-        allowed - статус разрешения на работу с базой
 
-        connection() - открыть/закрыть/переоткрыть конект
+    Методы и свойства
 
-        to_base() - отправка запроса с коррекцией базы
+        # Подключение
 
-        from_base() - получение данных по запросу от базы.
+        connected - подключена ли база
 
+        connection_data - объект, содержащий авторизационные данные
+
+        connect() -> bool or None
+            True - Успешно подключились, False - уже подключены, None - ошибка.
+
+        disconnect() -> bool or None
+            True - Успешно отключились, False - уже отключены, None - ошибка.
+
+        reconnect() ->  bool or None
+            True - Успешно, соединение было, False - Успешно, соединения не было, None - ошибка
+
+        # Запросы
+
+        to_database(request: str) -> bool or None
+            True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
+
+        from_database(request: str) -> tuple or False or None
+            tuple - результат, False - нет соединения, None - ошибка
+
+        from_database_set(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
+            list - результаты, False - нет соединения, None - ошибка
+
+        from_database_first_line(request: str) -> tuple or False or None
+            Берёт только первую строку
+            tuple - результат, False - нет соединения, None - ошибка
+
+        from_database_first_value(request: str) -> object or False or None
+            Бертё только первое значение первой строки
+            object - результат, False - нет соединения, None - ошибка
 
     '''
 
     def __init__(self,
                  connection_data: ConnectionData,
-                 logging_function=None,
-                 retry_attempts: int = 3, downtime: float = 0.01):
+                 logging_function = None,
+                 retry_attempts: int = 0):
         '''
 
         :param connection_data: данные для коннекта к базе
         :param logging_function: функция для логирования. Если она не указана, будет использована "заглушка"
-        :param retry_attempts: количество попыток переотправки запроса перед тем, как запрос свалится
-        :param downtime: таймаут меджу перезапросами
+        :param retry_attempts: количество попыток переотправки запроса перед тем, как запрос свалится. По дефолту это
+            ноль - без перезапросов.
         '''
+
         self.__connection_data = connection_data  # заберём данные для соединения с базой
 
         if logging_function is None:  # Если не передана функция логирования
@@ -42,160 +152,198 @@ class PostgreSQLconnector:
         self.__to_log = logging_function
 
         self.__retry_attempts = retry_attempts  # количество попыток подключения/переподключения/выполнения запросов
-        self.__downtime = downtime  # Ожидание между запросами при ошибке
 
-        self.__Allowed = False  # Переменная, разрешающая/запрещающая работу с запросами
+        self.__connected = False  # Переменная, разрешающая/запрещающая работу с запросами
 
-    def __no_log(self, message: str, log_type: str, *args, **kwargs):
+    def __no_log(self, message: str,
+                 logging_level: str = 'DEBUG',
+                 logging_data: object = None,
+                 exception_mistake: tuple or bool = False,
+                 trace: list or bool = False,
+                 **kwargs):
         '''
-        Функция - заглушка. На случай, если нет функции логирования.
+        Функция - заглушка
 
-        :param message: сообщение
-        :param log_type: тип логирования
-        :param args: для будущих аргументов
-        :param kwargs:  для будущих аргументов
-        :return:
+        :param message: сообщение для логирования
+        :param logging_level: тип сообщения в лог:
+                                DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
+
+                                INFO	Подтверждение того, что все работает, как ожидалось.
+
+                                WARNING	Указание на то, что произошло что-то неожиданное или указание на проблему в
+                                        ближайшем будущем (например, «недостаточно места на диске»).
+                                        Программное обеспечение все еще работает как ожидалось.
+
+                                ERROR	Из-за более серьезной проблемы программное обеспечение
+                                        не может выполнять какую-либо функцию.
+
+                                CRITICAL	Серьезная ошибка, указывающая на то,
+                                        что сама программа не может продолжить работу.
+        :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
+            обрабатывающихся в скриптах.
+        :param exception_mistake: данные об ошибке. Или это tuple, полученный от sys.exc_info(), состоящий из
+            всех трёхэлементов, или указание на запрос ошибки внутри функции логирования.
+            Если этот параметр не False, то trace игнорируется
+        :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
+            следа внутри функции. Если задан exception_mistake, то trace игнорируется.
+        :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
+            совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
+        :return: ничего
         '''
+
         return
 
+    # ------------------------------------------------------------------------------------------------
+    # Соединение с базой -----------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
+
     @property
-    def allowed(self):
+    def connected(self) -> bool:
         '''
-        Получить статус разрешённости работы с базой.
-        Становится True, если соединение есть и оно рабочее. False - если соединения нет или оно получило ошибку.
+        Статус подключённости к базе.
 
-        :return: bool статус.
+        :return: True - подключено, False - не подключено
         '''
-        return self.__Allowed
+        return self.__connected
 
-    # ------------------------------------------------------------------------------------------------
-    # Подключение/отключение -------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-
-    # Функция для работы с подключением к базе
-    def connection(self, act: str,
-                   retry_attempts: int = None) -> bool:  # подключение, переподключение
+    @property
+    def connection_data(self) -> ConnectionData:
         '''
-        Функция для подключения, отключения, переподключения к базе.
+        Отдаёт объект с данными о соединении с базой
 
-        :param act: действие, которое надо выполнить:
-                        close - закрыть соединение
-                        open - открыть соединение
-                        reopen - переоткрыть соединение
-        :param retry_attempts: количество попыток переподключения.
-        :return: статус успешности выполнения операции
+        :return:
+        '''
+        return self.__connection_data
+
+    def connect(self) -> bool or None:
+        '''
+        Функция подключается к базе. Даже в случае ошибки отключения, она отсоединится.
+
+        :return: статус: True - Успешно подключились, False - уже подключены, None - ошибка.
         '''
 
-        if retry_attempts is None:  # Если количество не установлено
-            retry_attempts = self.__retry_attempts  # Мы берём дефолтное
-
-        current_attempt = 1  # Начнём с первой попытки
-
-        self.__to_log(message=(f'connection: Запрошена операция "{act}". ' +
-                               f'Разрешено попыток: {retry_attempts}'),
-                      log_type='DEBUG')
-
-        self.__Allowed = False  # Работа с запросами запрещена "заранее"
-        # разрешается только в случае удачного открытия соединения
-
-        if act == 'close':
-            close_result = self.__connection_close(attempt=current_attempt)  # Пробуем отключиться
-            if close_result:
-                self.__to_log(message=(f'connection: Попытка {current_attempt} из {retry_attempts} ' +
-                                       f'операции "{act}" выполнена. Работа с запросами: {self.__Allowed}'),
-                              log_type='DEBUG')
-                return True  # Класс!
-            else:  # Если не удалось
-                self.__to_log(message=(f'connection: Попытка {current_attempt} из {retry_attempts} ' +
-                                       f'операции "{act}" провалена. Ожидание {self.__downtime} сек'),
-                              log_type='ERROR')
-                return False  # Вернём неудачу
-
-        elif act == 'open':
-            while current_attempt <= retry_attempts:  # Пробуем, пока не исчерпаем попытки
-                open_result = self.__connection_open(attempt=current_attempt)  # Пробуем отключиться
-                if open_result:
-                    self.__Allowed = True  # Работа с запросами разрешена
-                    self.__to_log(message=(f'connection: Попытка {current_attempt} из {retry_attempts} ' +
-                                           f'операции "{act}" выполнена. Работа с запросами: {self.__Allowed}'),
-                                  log_type='DEBUG')
-                    return True  # Класс!
-                else:  # Если не удалось
-                    self.__to_log(message=(f'connection: Попытка {current_attempt} из {retry_attempts} ' +
-                                           f'операции "{act}" провалена. Ожидание {self.__downtime} сек'),
-                                  log_type='ERROR')
-                    time.sleep(self.__downtime)  # Подождём
-                    current_attempt += 1  # Крутанём счётчик попыток
-
-            # Если все попытки провалены
-            self.__to_log(message=(f'connection: Операция "{act}" провалена: превышено количество попыток. ' +
-                                   f'Работа с запросами {self.__Allowed}'),
-                          log_type='ERROR')
-            return False  # результат - не выполнено
-
-        elif act == 'reopen':
-            close_result = self.connection(act='close')  # Пробуем отключиться
-            open_result = self.connection(act='open')  # Пробуем подключиться
-            if open_result:
-                self.__to_log(message=(f'connection: Операция "{act}" выполнена. Работа с запросами: {self.__Allowed}'),
-                              log_type='DEBUG')
-            else:
-                self.__to_log(message=(f'connection: Операция "{act}" провалена. ' +
-                                       f'Работа с запросами {self.__Allowed}'),
-                              log_type='ERROR')
-
-            return open_result  # вернём результат
-
-    # Отключиться от базы
-    def __connection_close(self, attempt: int) -> bool:
-        '''
-        Закрыть подключение
-
-        :param attempt: номер попытки отключения.
-        :return: bool статус "успешности" отключения.
-        '''
-
-        try:
-            self.__my_connection.close()  # закрыли соединение с базой
-        except BaseException as miss:
-            try:
-                del self.__my_connection
-            except BaseException:
-                pass
-
-            self.__to_log(message=(f'__connection_close: Попытка {attempt} отключения от базы провалена: {miss}. ' +
-                                   'Выполнено принудительное удаление объекта соединения.'),
-                          log_type='ERROR')
+        if self.connected:  # Если конект есть
             return False
 
-        return True
-
-    # Функция подключения к базе
-    def __connection_open(self, attempt: int) -> bool:
-        '''
-        Функция для подключения к базе.
-
-        :param attempt: номер попытки подключения.
-        :return: bool статус успешности.
-        '''
         # Пробуем законнектиться
         try:
-            self.__my_connection = psycopg2.connect(host=self.__connection_data.host,
-                                                    port=self.__connection_data.port,
-                                                    user=self.__connection_data.user,
-                                                    password=self.__connection_data.password,
-                                                    dbname=self.__connection_data.base_name
-                                                    )  # законектились
-            self.__my_connection_cursor = self.__my_connection.cursor()  # взяли курсор
-        except BaseException as miss:
-            self.__to_log(message=f'__connection_open: Попытка {attempt} подключения к базе провалена: {miss}',
-                          log_type='ERROR')
+            self.__connection = psycopg2.connect(host=self.connection_data.host,
+                                                 port=self.connection_data.port,
+                                                 user=self.connection_data.user,
+                                                 password=self.connection_data.password,
+                                                 dbname=self.connection_data.base_name
+                                                 )  # законектились
+            self.__cursor = self.__connection.cursor()  # взяли курсор
+            return True
+
+        except BaseException:
+            self.__to_log(message=f'Подключение к базе провалено',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user},
+                          log_type='ERROR', exception_mistake=True)
+            return None
+
+    def disconnect(self) -> bool or None:
+        '''
+        Отключение от базы
+
+        :return: True - Успешно отключились, False - уже отключены, None - ошибка.
+        '''
+        if not self.connected:  # Если конекта уже нет
             return False
-        return True
+
+        try:
+            self.__connection.close()  # закрыли соединение с базой
+            return True
+
+        except BaseException :
+            # Если отключиться не вышло, принудительно удадалим соединение
+            del self.__connection
+            del self.__cursor
+
+            self.__to_log(message='Отключение от базы провалено. Объект соединения удалён.',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user},
+                          log_type='ERROR', exception_mistake=True)
+            return None
+
+    def reconnect(self) -> bool or None:
+        '''
+        Функция для переподключения к базе.
+
+        :return: True - Успешно, соединение было, False - Успешно, соединения не было, None - ошибка (при соединении)
+        '''
+        if self.disconnect() is True:  # Если подключение было и оно разорвано
+            connect_status = self.connect()  # Подключимся (True или None)
+            if connect_status is True:  # если всё ок
+                return True  # Вернём, что подключение было, и мы переподключились
+            else:  # Если соединение упало
+                return None
+
+        else:  # Если соединения не было или была ошибка (но отсоединение произошло)
+            connect_status = self.connect()  # Подключимся (True или None)
+            if connect_status is True:  # если всё ок
+                return False  # Вернём, что подключения не было, но соединение установлено
+            else:  # Если соединение упало
+                return None
 
     # ------------------------------------------------------------------------------------------------
     # Выполнение запросов ----------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
+
+
+
+
+
+    def passss(self):
+        '''
+        # Запросы
+
+        to_database(request: str) -> bool or None
+            True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
+
+        from_database(request: str) -> tuple or False or None
+            tuple - результат, False - нет соединения, None - ошибка
+
+        from_database_set(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
+            list - результаты, False - нет соединения, None - ошибка
+
+        from_database_first_line(request: str) -> tuple or False or None
+            Берёт только первую строку
+            tuple - результат, False - нет соединения, None - ошибка
+
+        from_database_first_value(request: str) -> object or False or None
+            Бертё только первое значение первой строки
+            object - результат, False - нет соединения, None - ошибка
+
+
+        :return:
+        '''
+        return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     # отправка данных в базу
     def to_base(self, request: str,
                 retry_attempts: int = None,
@@ -232,8 +380,8 @@ class PostgreSQLconnector:
         is_ok = False  # По дефолту - запрос не отправлен
         while current_attempt <= retry_attempts:  # Пока есть попытки, будем пытаться
             try:
-                self.__my_connection_cursor.execute(request)  # отправили запрос
-                self.__my_connection.commit()  # Внесём изменения в базу
+                self.__cursor.execute(request)  # отправили запрос
+                self.__connection.commit()  # Внесём изменения в базу
                 is_ok = True  # отметим, что запрос отпарвился
                 break  # Закончим попытки
             except BaseException as miss:  # Если вышла ошибка
@@ -298,8 +446,8 @@ class PostgreSQLconnector:
         result = errors_placeholder  # и результат по дефолту errors_placeholder
         while current_attempt <= retry_attempts:  # Пока есть попытки, будем пытаться
             try:
-                self.__my_connection_cursor.execute(request)  # отправили запрос
-                result = self.__my_connection_cursor.fetchall()  # Получим ответ
+                self.__cursor.execute(request)  # отправили запрос
+                result = self.__cursor.fetchall()  # Получим ответ
                 is_ok = True  # отметим, что запрос отпарвился
                 break  # Закончим попытки
             except BaseException as miss:  # Если вышла ошибка
