@@ -1,12 +1,8 @@
-from SystemCore.Logging.Loggers.LoggingToJSON import JsonLogger
-Logger = JsonLogger(module_name='тест', journals_catalog='D:\Projects\Журналы', journal_file='тест 3')
-Logger.to_log('HELLO!')
-Logger.to_log('here is a trace', trace=True)
+from SystemCore.CatalogCommunication.CataloguesManager import CatalogsManager
 
-q = []
-try:
-    a = q[10]
-except BaseException:
-    Logger.to_log('except??', exception_mistake=True)
+CM = CatalogsManager(process_name='test1', parent_directory='E:/0_Data/0 Main catalog')
 
 
+CM.add_section('S1', 'S1')
+CM.add_section('S2', 'S2')
+dir = CM.session_path
