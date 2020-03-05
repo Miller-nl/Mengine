@@ -1,8 +1,27 @@
-from SystemCore.CatalogCommunication.CataloguesManager import CatalogsManager
+from SystemCore.SQLtalks.Connectors.PostgreSQL import PostgreSQLconnector
+from SystemCore.SQLtalks.Connectors.ConnectionDTOs import RemoteBaseConnectionData
+import psycopg2
 
-CM = CatalogsManager(process_name='test1', parent_directory='E:/0_Data/0 Main catalog')
+CD = RemoteBaseConnectionData(base_name='AutoSEO',
+                              host='localhost', port='1234',
+                              user='postgres', password='catalog')
 
 
-CM.add_section('S1', 'S1')
-CM.add_section('S2', 'S2')
-dir = CM.session_path
+PSC = PostgreSQLconnector(connection_data=CD)
+PSC.connect()
+
+request = 'SELECT * FROM geo_data'
+print(PSC.request_fetch_all(request)[:2])
+print(PSC.request_fetch_many(request, 2))
+print(PSC.request_fetch_value(request))
+print('Сделаем ошибку')
+print(PSC.request_fetch_many(request))
+
+print('Запросим ещё раз')
+print(PSC.request_fetch_value(request + 'aaa'))
+
+print()
+print(f'Список ошибок: {PSC._mistakes}')
+
+#print(PSC.request_fetch_all('SELECT * FROM geo_dataa'))
+#print(PSC._mistakes())

@@ -4,6 +4,7 @@
 '''
 
 import psycopg2
+import sys
 
 from SystemCore.SQLtalks.Connectors.ConnectionDTOs import RemoteBaseConnectionData
 
@@ -23,14 +24,11 @@ class PostgreSQLconnector:
 
         connection_data - объект, содержащий авторизационные данные
 
-        connect() -> bool or None
-            True - Успешно подключились, False - уже подключены, None - ошибка.
+        connect() -> подключение
 
-        disconnect() -> bool or None
-            True - Успешно отключились, False - уже отключены, None - ошибка.
+        disconnect() -> отключение
 
-        reconnect() ->  bool or None
-            True - Успешно, соединение было, False - Успешно, соединения не было, None - ошибка
+        reconnect() ->  переподключение
 
         # Запросы
 
@@ -42,11 +40,13 @@ class PostgreSQLconnector:
 
         request_fetch_value() - получает нулевое значение нулевой строки
 
+
+        _mistakes - список ошибок, полученных при работе с каталогами (.append(sys.exc_info()))
     '''
 
     def __init__(self,
                  connection_data: RemoteBaseConnectionData,
-                 logging_function = None,
+                 logging_function=None,
                  retry_attempts: int = 0):
         '''
 
@@ -65,6 +65,10 @@ class PostgreSQLconnector:
         self.__retry_attempts = retry_attempts  # количество попыток подключения/переподключения/выполнения запросов
 
         self.__connected = False  # Переменная, разрешающая/запрещающая работу с запросами
+
+        self.__mistakes = []  # список ошибок
+
+        self.connect()  # Подключимся к базе
 
     def __no_log(self, message: str,
                  logging_level: str = 'DEBUG',
@@ -102,7 +106,19 @@ class PostgreSQLconnector:
         :return: ничего
         '''
 
+        if logging_level in ['WARNING', 'ERROR', 'CRITICAL']:  # Закинем ошибку в список
+            self.__mistakes.append(sys.exc_info())
+
         return
+
+    @property
+    def _mistakes(self) -> list:
+        '''
+        Отдаёт копию списка с ошибками. Список может юыть пуст
+
+        :return:
+        '''
+        return self.__mistakes.copy()
 
     # ------------------------------------------------------------------------------------------------
     # Соединение с базой -----------------------------------------------------------------------------
@@ -144,7 +160,7 @@ class PostgreSQLconnector:
                                                  password=self.connection_data.password,
                                                  dbname=self.connection_data.base_name
                                                  )  # законектились
-            self.__cursor = self.__connection.cursor()  # взяли курсор
+            self.__connected = True
             return True
 
         except BaseException:
@@ -165,14 +181,13 @@ class PostgreSQLconnector:
             return False
 
         try:
-            self.__cursor.close()  # закрыли курсор
             self.__connection.close()  # закрыли соединение с базой
+            self.__connected = False
             return True
 
         except BaseException :
             # Если отключиться не вышло, принудительно удадалим соединение
-            del self.__connection
-            del self.__cursor
+            self.__connected = False
 
             self.__to_log(message='Отключение от базы провалено. Объект соединения удалён.',
                           logging_data={'base_name': self.connection_data.base_name,
@@ -187,19 +202,27 @@ class PostgreSQLconnector:
 
         :return: True - Успешно, соединение было, False - Успешно, соединения не было, None - ошибка (при соединении)
         '''
-        if self.disconnect() is True:  # Если подключение было и оно разорвано
-            connect_status = self.connect()  # Подключимся (True или None)
-            if connect_status is True:  # если всё ок
-                return True  # Вернём, что подключение было, и мы переподключились
-            else:  # Если соединение упало
-                return None
+        if self.connected:  # Если подключение есть
+            try:
+                self.__connection.reset()  # Пробуем переподключиться
+                result = True
+            except BaseException:
+                self.__connected = False  # Чекаем отсутствие соединения
+                self.__to_log(message='Переподключение к базе провалено',
+                              logging_data={'base_name': self.connection_data.base_name,
+                                            'server': self.connection_data.server,
+                                            'user': self.connection_data.user},
+                              log_type='ERROR', exception_mistake=True)
+                result = None  # Чекаем ошибку
 
-        else:  # Если соединения не было или была ошибка (но отсоединение произошло)
-            connect_status = self.connect()  # Подключимся (True или None)
-            if connect_status is True:  # если всё ок
-                return False  # Вернём, что подключения не было, но соединение установлено
-            else:  # Если соединение упало
-                return None
+        else:  # Если нет
+            connect_status = self.connect()  # Создаём
+            if connect_status:  # Если успешно
+                result = False  # Чекаем статус - соединения не было, создано
+            else:
+                result = None  # чекаем ошибку
+
+        return result  # Закончим
 
     # ------------------------------------------------------------------------------------------------
     # Выполнение запросов ----------------------------------------------------------------------------
@@ -216,74 +239,88 @@ class PostgreSQLconnector:
             return False
 
         try:
-            self.__cursor.execute(request)  # отправили запрос
+            cursor = self.__connection.cursor()  # Взяли курсор
+            cursor.execute(request)  # отправили запрос
             self.__connection.commit()  # Внесём изменения в базу
-            return True  # Вернём "успешность"
+            result = True  # Вернём "успешность"
 
         except BaseException:  # Если вышла ошибка
+            self.__connection.rollback()  # Откатим операцию
             self.__to_log(message='Отправка данных в базу провалена.',
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user,
                                         'request': request},
-                          log_type='ERROR', exception_mistake=True)
-            return None
+                          logging_level='ERROR', exception_mistake=True)
+            result = None
+        finally:
+            cursor.close()
 
-    def request_fetch_all(self, request: str) -> tuple or False or None:
+        return result  # вернём статус
+
+    def request_fetch_all(self, request: str) -> list or False or None:
         '''
         Функция получает данные от базы данных. Забираются все строки
-        Вид данных ((str1), (str2),)
+        Вид данных [(str1), (str2), ...]
 
         :param request: запрос
-        :return: tuple - результат, False - нет соединения, None - ошибка.
+        :return: list - результат, False - нет соединения, None - ошибка.
         '''
-
         if not self.connected:  # Если соединения нет
             return False
 
         try:
-
-            self.__cursor.execute(request)  # отправили запрос
-            result = self.__cursor.fetchall()  # Получим ответ
-
-            return result  # Вернём "успешность"
+            cursor = self.__connection.cursor()  # Взяли курсор
+            cursor.execute(request)  # отправили запрос
+            result = cursor.fetchall()  # Получим ответ
 
         except BaseException:  # Если вышла ошибка
+            self.__connection.rollback()  # Откатим операцию
             self.__to_log(message='Получение данных из базы провалено.',
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user,
                                         'request': request},
-                          log_type='ERROR', exception_mistake=True)
-            return None
+                          logging_level='ERROR', exception_mistake=True)
+            result = None  # Установим ошибку на экспорт
+
+        finally:
+            cursor.close()
+
+        return result  # Вернём результат
 
     def request_fetch_many(self, request: str,
-                           size: int = 1) -> tuple or False or None:
+                           size: int = 1) -> list or False or None:
         '''
         Функция получает данные от базы данных. Забираются все строки
-        Вид данных ((str1), (str2),)
+        Вид данных [(str1), (str2), ... , (str_n)]
 
         :param request: запрос
         :param size: количество строк, которые будут извлечены
-        :return: tuple - результат, False - нет соединения, None - ошибка.
+        :return: list - результат, False - нет соединения, None - ошибка.
         '''
 
         if not self.connected:  # Если соединения нет
             return False
 
         try:
-            self.__cursor.execute(request)  # отправили запрос
-            result = self.__cursor.fetchmany(size=size)  # Получим ответ
-            return result  # Вернём "результат"
+            cursor = self.__connection.cursor()  # Взяли курсор
+            cursor.execute(request)  # отправили запрос
+            result = cursor.fetchmany(size=size)  # Получим ответ
 
         except BaseException:  # Если вышла ошибка
+            self.__connection.rollback()  # Откатим операцию
             self.__to_log(message='Получение данных из базы провалено.',
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user,
                                         'request': request},
-                          log_type='ERROR', exception_mistake=True)
-            return None
+                          logging_level='ERROR', exception_mistake=True)
+            result = None
+        finally:
+            cursor.close()
+
+        return result
 
     def request_fetch_value(self, request: str,
                             errors_placeholder: object = None) -> object:
@@ -302,16 +339,22 @@ class PostgreSQLconnector:
             return errors_placeholder
 
         try:
-            self.__cursor.execute(request)  # отправили запрос
-            result = self.__cursor.fetchone()[0]  # Получим ответ
+            cursor = self.__connection.cursor()  # Взяли курсор
+            cursor.execute(request)  # отправили запрос
+            result = cursor.fetchone()[0]  # Получим ответ
             return result  # Вернём "успешность"
 
         except BaseException:  # Если вышла ошибка
+            self.__connection.rollback()  # Откатим операцию
             self.__to_log(message='Получение данных из базы провалено.',
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user,
                                         'request': request},
-                          log_type='ERROR', exception_mistake=True)
-            return errors_placeholder
+                          logging_level='ERROR', exception_mistake=True)
+            result = errors_placeholder
+        finally:
+            cursor.close()
+
+        return result
 
