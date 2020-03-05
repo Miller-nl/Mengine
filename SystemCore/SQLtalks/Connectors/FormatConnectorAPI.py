@@ -24,21 +24,21 @@
 
     # Запросы
 
-    to_database(request: str) -> bool or None
+    request_commit(request: str) -> bool or None
         True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
 
-    from_database(request: str) -> tuple or False or None
+    request_fetch_all(request: str) -> tuple or False or None
         tuple - результат, False - нет соединения, None - ошибка
 
-    from_database_set(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
+    request_fetch_many(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
         list - результаты, False - нет соединения, None - ошибка
 
-    from_database_first_line(request: str) -> tuple or False or None
-        Берёт только первую строку
+    request_fetch_many(request: str, size: int = 1) -> tuple or False or None
+        Берёт указанное количество первых строк ответа базы.
         tuple - результат, False - нет соединения, None - ошибка
 
-    from_database_first_value(request: str) -> object or False or None
-        Бертё только первое значение первой строки
-        object - результат, False - нет соединения, None - ошибка
+    request_fetch_value(request: str, errors_placeholder: object = None) -> object
+        Бертё только первое значение первой строки. В ответ придёт результат - значение ячейки или
+        errors_placeholder в случае любой ошибки, включая отсутствие соединения с базой.
 
 '''

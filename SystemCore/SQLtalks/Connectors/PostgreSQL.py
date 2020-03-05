@@ -85,9 +85,6 @@ class ConnectionData:
         '''
         return f'{self.user}:{self.password}'
 
-
-
-
 # ------------------------------------------------------------------------------------------------
 # Выполнение запросов ----------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
@@ -114,22 +111,13 @@ class PostgreSQLconnector:
 
         # Запросы
 
-        to_database(request: str) -> bool or None
-            True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
+        request_commit() - отправка запроса в базу
 
-        from_database(request: str) -> tuple or False or None
-            tuple - результат, False - нет соединения, None - ошибка
+        request_fetch_all() - получает все строки по запросу
 
-        from_database_set(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
-            list - результаты, False - нет соединения, None - ошибка
+        request_fetch_many() - получает указанное количество строк по запросу
 
-        from_database_first_line(request: str) -> tuple or False or None
-            Берёт только первую строку
-            tuple - результат, False - нет соединения, None - ошибка
-
-        from_database_first_value(request: str) -> object or False or None
-            Бертё только первое значение первой строки
-            object - результат, False - нет соединения, None - ошибка
+        request_fetch_value() - получает нулевое значение нулевой строки
 
     '''
 
@@ -254,6 +242,7 @@ class PostgreSQLconnector:
             return False
 
         try:
+            self.__cursor.close()  # закрыли курсор
             self.__connection.close()  # закрыли соединение с базой
             return True
 
@@ -292,183 +281,114 @@ class PostgreSQLconnector:
     # ------------------------------------------------------------------------------------------------
     # Выполнение запросов ----------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-
-
-
-
-
-    def passss(self):
+    def request_commit(self, request: str) -> bool or None:
         '''
-        # Запросы
+        Функция для передачи запросов в базу с коммитом.
 
-        to_database(request: str) -> bool or None
-            True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
-
-        from_database(request: str) -> tuple or False or None
-            tuple - результат, False - нет соединения, None - ошибка
-
-        from_database_set(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
-            list - результаты, False - нет соединения, None - ошибка
-
-        from_database_first_line(request: str) -> tuple or False or None
-            Берёт только первую строку
-            tuple - результат, False - нет соединения, None - ошибка
-
-        from_database_first_value(request: str) -> object or False or None
-            Бертё только первое значение первой строки
-            object - результат, False - нет соединения, None - ошибка
-
-
-        :return:
-        '''
-        return
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # отправка данных в базу
-    def to_base(self, request: str,
-                retry_attempts: int = None,
-                try_to_allow: bool = True) -> bool:
-        '''
-        Функция для отправки запросов в базу.
-
-        :param request: один запрос.
-        :param retry_attempts: количество попыток повтора запроса к базе. Если это None, то будет использовано
-                дефолтное количество self.__retry_attempts
-        :param try_to_allow: попробовать ли подключиться, если работа с запросами запрещена?
-        :return: bool статус успешности выполнения.
+        :param request: запрос к базе данных
+        :return: True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
         '''
 
-        # Проверим курсор
-        if not self.__Allowed and try_to_allow:  # Если работа запрешена (курсора нет) но можно подключиться
-            self.__to_log(message=f'to_base: Работа с запросами запрещена. Запрашиваю временное подключение к базе',
-                          log_type='DEBUG')
-            if not self.connection(act='reopen', retry_attempts=1):  # Если переподключение не удалось
-                self.__to_log(message=(f'to_base: Ошибка передачи запроса в базу. Работа с запросами запрещена'),
-                              log_type='ERROR')
-                return False
-            else:
-                self.__to_log(message=f'to_base: Подключение открыто для выполнения одного запроса',
-                              log_type='DEBUG')
-                close_after = True  # Если мы законектились внутри функции, то надо будет отконектиться
-        else:  # Если соединение есть и всё ок
-            close_after = False
-
-        if retry_attempts is None:  # Если не указано количество,
-            retry_attempts = self.__retry_attempts  # Установим дефолтное
-        current_attempt = 1  # Текущая попытка - 1
-
-        is_ok = False  # По дефолту - запрос не отправлен
-        while current_attempt <= retry_attempts:  # Пока есть попытки, будем пытаться
-            try:
-                self.__cursor.execute(request)  # отправили запрос
-                self.__connection.commit()  # Внесём изменения в базу
-                is_ok = True  # отметим, что запрос отпарвился
-                break  # Закончим попытки
-            except BaseException as miss:  # Если вышла ошибка
-                self.__to_log(message=(f'to_base: попытка отправки запроса {current_attempt} ' +
-                                       f'из {retry_attempts} провалена: {miss}. Соединение будет переоткрыто'),
-                              log_type='ERROR')
-                # Делаем переподключение, т.к. курсор может зависнуть
-                reconnect_result = self.connection(act='reopen', retry_attempts=1)
-                if not reconnect_result:  # Если реконект не удался
-                    self.__to_log(message=f'to_base: попытка переподключения провалена. Работа закончена',
-                                  log_type='ERROR')
-                    break
-                current_attempt += 1  # Скрутим счётчик попыток
-
-        if close_after:  # Если соединение было на один запрос
-            self.connection(act='close')
-
-        if is_ok:  # Если запрос отправился
-            return True
-        else:  # Если запрос не отправился
-            self.__to_log(message=f'to_base: Отправка запроса провалена. Исчерпано количество попыток.',
-                          log_type='ERROR')
+        if not self.connected:  # Если соединения нет
             return False
 
-    # отправка данных в базу
-    def from_base(self, request: str,
-                  retry_attempts: int = None,
-                  errors_placeholder: object = 'ERROR',
-                  try_to_allow: bool = True) -> None or tuple:
+        try:
+            self.__cursor.execute(request)  # отправили запрос
+            self.__connection.commit()  # Внесём изменения в базу
+            return True  # Вернём "успешность"
+
+        except BaseException:  # Если вышла ошибка
+            self.__to_log(message='Отправка данных в базу провалена.',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user,
+                                        'request': request},
+                          log_type='ERROR', exception_mistake=True)
+            return None
+
+    def request_fetch_all(self, request: str) -> tuple or False or None:
         '''
-        Функция для получения данных из базы.
+        Функция получает данные от базы данных. Забираются все строки
+        Вид данных ((str1), (str2),)
 
-        :param request: один запрос.
-        :param retry_attempts: количество попыток повтора запроса к базе. Если это None, то будет использовано
-                дефолтное количество self.__retry_attempts
-        :param errors_placeholder: объект, который будет заполнять упавшие запросы в списке элементов, который будет
-            экспортирован. Если значение None - то заполнения не будет.
-        :param try_to_allow: попробовать ли подключиться, если работа с запросами запрещена?
-        :return: None в случае ошибки или данные или tuple с данными
+        :param request: запрос
+        :return: tuple - результат, False - нет соединения, None - ошибка.
         '''
 
-        # Проверим курсор
-        if not self.__Allowed and try_to_allow:  # Если работа запрешена (курсора нет) но можно подключиться
-            self.__to_log(message=f'from_base: Работа с запросами запрещена. Запрашиваю временное подключение к базе',
-                          log_type='DEBUG')
-            if not self.connection(act='reopen', retry_attempts=1):  # Если переподключение не удалось
-                self.__to_log(message=(f'from_base: Ошибка передачи запроса в базу. Работа с запросами запрещена'),
-                              log_type='ERROR')
-                return None
-            else:
-                self.__to_log(message=f'from_base: Подключение открыто для выполнения одного запроса',
-                              log_type='DEBUG')
-                close_after = True  # Если мы законектились внутри функции, то надо будет отконектиться
-        else:  # Если соединение есть и всё ок
-            close_after = False
+        if not self.connected:  # Если соединения нет
+            return False
 
-        if retry_attempts is None:  # Если не указано количество,
-            retry_attempts = self.__retry_attempts  # Установим дефолтное
-        current_attempt = 1  # Текущая попытка - 1
+        try:
 
-        is_ok = False  # По дефолту - запрос не отправлен
-        result = errors_placeholder  # и результат по дефолту errors_placeholder
-        while current_attempt <= retry_attempts:  # Пока есть попытки, будем пытаться
-            try:
-                self.__cursor.execute(request)  # отправили запрос
-                result = self.__cursor.fetchall()  # Получим ответ
-                is_ok = True  # отметим, что запрос отпарвился
-                break  # Закончим попытки
-            except BaseException as miss:  # Если вышла ошибка
-                self.__to_log(message=(f'from_base: попытка отправки запроса {current_attempt} ' +
-                                       f'из {retry_attempts} провалена: {miss}. Соединение будет переоткрыто'),
-                              log_type='ERROR')
-                # Делаем переподключение, т.к. курсор может зависнуть
-                reconnect_result = self.connection(act='reopen', retry_attempts=1)
-                if not reconnect_result:  # Если реконект не удался
-                    self.__to_log(message=f'from_base: попытка переподключения провалена. Работа закончена',
-                                  log_type='ERROR')
-                    break
-                current_attempt += 1  # Скрутим счётчик попыток
+            self.__cursor.execute(request)  # отправили запрос
+            result = self.__cursor.fetchall()  # Получим ответ
 
-        if close_after:  # Если соединение было на один запрос
-            self.connection(act='close')
+            return result  # Вернём "успешность"
 
-        if is_ok:  # Если запрос отправился
-            return result
-        else:  # Если запрос не отправился
-            self.__to_log(message=f'from_base: Отправка запроса провалена. Исчерпано количество попыток.',
-                          log_type='ERROR')
-            return result
+        except BaseException:  # Если вышла ошибка
+            self.__to_log(message='Получение данных из базы провалено.',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user,
+                                        'request': request},
+                          log_type='ERROR', exception_mistake=True)
+            return None
+
+    def request_fetch_many(self, request: str,
+                           size: int = 1) -> tuple or False or None:
+        '''
+        Функция получает данные от базы данных. Забираются все строки
+        Вид данных ((str1), (str2),)
+
+        :param request: запрос
+        :param size: количество строк, которые будут извлечены
+        :return: tuple - результат, False - нет соединения, None - ошибка.
+        '''
+
+        if not self.connected:  # Если соединения нет
+            return False
+
+        try:
+            self.__cursor.execute(request)  # отправили запрос
+            result = self.__cursor.fetchmany(size=size)  # Получим ответ
+            return result  # Вернём "результат"
+
+        except BaseException:  # Если вышла ошибка
+            self.__to_log(message='Получение данных из базы провалено.',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user,
+                                        'request': request},
+                          log_type='ERROR', exception_mistake=True)
+            return None
+
+    def request_fetch_value(self, request: str,
+                            errors_placeholder: object = None) -> object:
+        '''
+        Функция получает первое (нулевое) значение первой (нулевой) строки из ответа и возвращат его.
+        Нужна для удобства, чтобы можно было легко запросить "количество", "минимум"/"максимум" и прочие подобные
+            величины.
+
+        :param request: запрос
+        :param errors_placeholder: "заменитель" ошибки. Актуален потому, что значение может быть и None.
+            Но "поумолчанию" подразумевается, что единственное запрашиваемое значение не должно быть None.
+        :return: "нулевое" значение "нулевой" строки или errors_placeholder в случае ошибки. Отсутствие соединения
+            тоже будет считаться ошибкой.
+        '''
+        if not self.connected:  # Если соединения нет
+            return errors_placeholder
+
+        try:
+            self.__cursor.execute(request)  # отправили запрос
+            result = self.__cursor.fetchone()[0]  # Получим ответ
+            return result  # Вернём "успешность"
+
+        except BaseException:  # Если вышла ошибка
+            self.__to_log(message='Получение данных из базы провалено.',
+                          logging_data={'base_name': self.connection_data.base_name,
+                                        'server': self.connection_data.server,
+                                        'user': self.connection_data.user,
+                                        'request': request},
+                          log_type='ERROR', exception_mistake=True)
+            return errors_placeholder
 
