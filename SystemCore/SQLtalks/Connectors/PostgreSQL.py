@@ -5,7 +5,7 @@
 
 import psycopg2
 
-from SystemCore.SQLtalks.Connectors.ConnectionDTOs import ConnectionData
+from SystemCore.SQLtalks.Connectors.ConnectionDTOs import RemoteBaseConnectionData
 
 
 # ------------------------------------------------------------------------------------------------
@@ -45,7 +45,7 @@ class PostgreSQLconnector:
     '''
 
     def __init__(self,
-                 connection_data: ConnectionData,
+                 connection_data: RemoteBaseConnectionData,
                  logging_function = None,
                  retry_attempts: int = 0):
         '''
@@ -118,7 +118,7 @@ class PostgreSQLconnector:
         return self.__connected
 
     @property
-    def connection_data(self) -> ConnectionData:
+    def connection_data(self) -> RemoteBaseConnectionData:
         '''
         Отдаёт объект с данными о соединении с базой
 

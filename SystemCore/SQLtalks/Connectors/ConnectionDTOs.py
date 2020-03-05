@@ -1,5 +1,5 @@
 
-class ConnectionData:
+class RemoteBaseConnectionData:
     '''
     Объект, хранящий данные для подключения
     '''
