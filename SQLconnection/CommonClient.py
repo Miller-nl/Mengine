@@ -40,7 +40,7 @@ from .SQLworkers.PostgreSQL import PostgreSQLconnector
 from .SQLworkers.MySQL import MySQLconnector
 from .SQLworkers.LiteSQL import SQLiteConnector
 
-update_statements = ['CREATE', 'DROP', 'ALTER', 'INSERT', 'DELETE', 'UPDATE']
+
 
 class SQLcommunicator:
     '''

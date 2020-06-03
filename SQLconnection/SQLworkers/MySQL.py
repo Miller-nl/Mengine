@@ -8,21 +8,6 @@ import pymysql
 from ..SQLworkers.RemoteConnectionData import RemoteConnectionData
 from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
-'''
-Реализовать методы:
-
-# При создании объекта класса надо передать данные для подключения
-
-connection = ПАКЕТ.connect()  # создать подключение
-connection.close()
-connection.cursor()
-
-cursor.execute()
-cursor.fetchmany()
-cursor.rollback()
-execute.close()
-'''
-
 
 # ------------------------------------------------------------------------------------------------
 # Выполнение запросов ----------------------------------------------------------------------------
