@@ -1,7 +1,7 @@
-from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
-
 import os
 from chardet.universaldetector import UniversalDetector
+
+from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 class StandartReader:
     '''
