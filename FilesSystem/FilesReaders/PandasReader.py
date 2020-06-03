@@ -51,6 +51,7 @@ class PandasReader(StandartReader):
 
         :param logger: логер. Если логер не указан, будет добавлен собственный
         :param parent_name: имя родительского модуля.
+        :param save_loaded: сохоанять ли считанные файлы?
         '''
 
         self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
