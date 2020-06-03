@@ -2,7 +2,7 @@
 Функции для быстрой и удобной сборки простых запросов на вставку и обновление данных.
 '''
 
-from .CommonClient import SQLcommunicator
+from .UniversalConnector import SQLconnector
 
 def simple_check(table: str,
                  where: list = None) -> str:
@@ -103,7 +103,7 @@ def add_values_set_separation(values_list: list,
 
 
 def get_string_parameters(table: str,
-                          communicator: SQLcommunicator,
+                          communicator: SQLconnector,
                           where: list = None) -> list or dict or None:
     '''
     Функция подготавливает словарь или список словарей, отвечающих найденным строкам. Индексами в словарях

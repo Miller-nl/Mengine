@@ -1,7 +1,3 @@
-
-from .CommonClient import SQLcommunicator
-from .SQLworkers.RemoteConnectionData import RemoteConnectionData
-
 from .SQLworkers.LiteSQL import SQLiteConnector
 from .SQLworkers.MySQL import MySQLconnector
 from .SQLworkers.PostgreSQL import PostgreSQLconnector

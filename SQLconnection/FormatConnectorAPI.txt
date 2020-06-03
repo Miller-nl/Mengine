@@ -3,36 +3,40 @@
 
 Методы и свойства
 
-    # Подключение
 
-    connected - подключена ли база
+    Логирование:
+        _Logger - логгер
 
-    connection_data - объект, содержащий авторизационные данные
+        _my_name - "под имя", использующееся при логировании
 
-    connect() -> bool or None
-        True - Успешно подключились, False - уже подключены, None - ошибка.
+        _to_log - функция логирования
 
-    disconnect() -> bool or None
-        True - Успешно отключились, False - уже отключены, None - ошибка.
+    Упавшие запросы:
+        _FailedMessages - контейнер упавших запросов или None, если он не требовался.
 
-    reconnect() ->  bool or None
-        True - Успешно, соединение было, False - Успешно, соединения не было, None - ошибка
+        _failed_requests_logging - сопровождать ли сообщение логеру упавшим запросом?
 
-    # Запросы
+        _remember_only_failed_updates - добавлять ли в контейнер только упавшие запросы, относящиеся к обновлению
+            информации в базе.
 
-    request_commit(request: str) -> bool or None
-        True - успешно, False - нет соединения, None - ошибка отправки запроса или коммита
+    Подключение:
+        engine - название движка
 
-    request_fetch_all(request: str) -> tuple or False or None
-        tuple - результат, False - нет соединения, None - ошибка
+        connected - подключена ли база
 
-    request_fetch_many(requests: list, errors_placeholder: object = 'ERROR') -> list or False or None
-        list - результаты, False - нет соединения, None - ошибка
+        connection_data - объект, содержащий авторизационные данные (RemoteConnectionData)
 
-    request_fetch_many(request: str, size: int = 1) -> tuple or False or None
-        Берёт указанное количество первых строк ответа базы.
-        tuple - результат, False - нет соединения, None - ошибка
+        connect() -> подключение
 
-    request_fetch_value(request: str, errors_placeholder: object = None) -> object
-        Бертё только первое значение первой строки. В ответ придёт результат - значение ячейки или
-        errors_placeholder в случае любой ошибки, включая отсутствие соединения с базой.
+        disconnect() -> отключение
+
+        reconnect() ->  переподключение
+
+    Запросы:
+        request_commit() - отправка запроса в базу
+
+        request_fetch_all() - получает все строки по запросу
+
+        request_fetch_many() - получает указанное количество строк по запросу
+
+        request_fetch_value() - получает нулевое значение нулевой строки

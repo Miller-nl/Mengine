@@ -509,6 +509,7 @@ class SQLconnector:
         if not self.connected:  # Если соединения нет
             return False
 
+        result = None  # дефолтный результат
         try:
             cursor = self.__connection.cursor()  # Взяли курсор
             cursor.execute(request)  # отправили запрос
@@ -533,9 +534,11 @@ class SQLconnector:
 
             self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
 
-            result = None
         finally:
-            cursor.close()
+            try:
+                cursor.close()
+            except BaseException:
+                pass
 
         return result  # вернём статус
 
@@ -550,6 +553,7 @@ class SQLconnector:
         if not self.connected:  # Если соединения нет
             return False
 
+        result = None  # дефолтный результат
         try:
             cursor = self.__connection.cursor()  # Взяли курсор
             cursor.execute(request)  # отправили запрос
@@ -570,12 +574,15 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-            result = None  # Установим ошибку на экспорт
+
 
             self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
 
         finally:
-            cursor.close()
+            try:
+                cursor.close()
+            except BaseException:
+                pass
 
         return result  # Вернём результат
 
@@ -593,6 +600,7 @@ class SQLconnector:
         if not self.connected:  # Если соединения нет
             return False
 
+        result = None  # дефолтный результат
         try:
             cursor = self.__connection.cursor()  # Взяли курсор
             cursor.execute(request)  # отправили запрос
@@ -614,12 +622,14 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-            result = None
 
             self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
 
         finally:
-            cursor.close()
+            try:
+                cursor.close()
+            except BaseException:
+                pass
 
         return result
 
@@ -639,6 +649,7 @@ class SQLconnector:
         if not self.connected:  # Если соединения нет
             return errors_placeholder
 
+        result = errors_placeholder  # дефолтный результат
         try:
             cursor = self.__connection.cursor()  # Взяли курсор
             cursor.execute(request)  # отправили запрос
@@ -660,11 +671,13 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-            result = errors_placeholder
 
             self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
 
         finally:
-            cursor.close()
+            try:
+                cursor.close()
+            except BaseException:
+                pass
 
         return result
