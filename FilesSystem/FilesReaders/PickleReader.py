@@ -1,4 +1,4 @@
-from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 from .StandartReader import StandartReader
 
 import pickle

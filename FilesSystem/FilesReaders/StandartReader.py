@@ -1,4 +1,4 @@
-from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 import os
 from chardet.universaldetector import UniversalDetector
