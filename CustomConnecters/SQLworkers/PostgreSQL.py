@@ -3,21 +3,19 @@
 
 '''
 
-import pymysql
+import psycopg2
 
-from SystemCore.SQLconnectors.SQLworkers.RemoteConnectionData import RemoteConnectionData
-from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
-
+from ..SQLworkers.RemoteConnectionData import RemoteConnectionData
+from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 # ------------------------------------------------------------------------------------------------
 # Выполнение запросов ----------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class MySQLconnector:
+class PostgreSQLconnector:
     '''
     Модуль для обращения в PostgerSQL базу.
 
     Методы и свойства
-
         Логирование:
             _Logger - логгер
 
@@ -45,8 +43,8 @@ class MySQLconnector:
 
             request_fetch_value() - получает нулевое значение нулевой строки
 
-
     '''
+
     def __init__(self,
                  connection_data: RemoteConnectionData,
                  logger: CommonLoggingClient = None, parent_name: str = None,
@@ -61,12 +59,13 @@ class MySQLconnector:
 
         self.__connection_data = connection_data  # заберём данные для соединения с базой
 
+        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
+                                                                      logger=logger, parent_name=parent_name)
+
         self.__requests_logging = requests_logging
 
         self.__connected = False  # Переменная, разрешающая/запрещающая работу с запросами
 
-        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
-                                                                      logger=logger, parent_name=parent_name)
 
     # ------------------------------------------------------------------------------------------------
     # Логирование ------------------------------------------------------------------------------------
@@ -131,12 +130,12 @@ class MySQLconnector:
 
         # Пробуем законнектиться
         try:
-            self.__connection = pymysql.connect(host=self.connection_data.host,
-                                                port=self.connection_data.port,
-                                                user=self.connection_data.user,
-                                                password=self.connection_data.password,
-                                                database=self.connection_data.base_name
-                                                )  # законектились
+            self.__connection = psycopg2.connect(host=self.connection_data.host,
+                                                 port=self.connection_data.port,
+                                                 user=self.connection_data.user,
+                                                 password=self.connection_data.password,
+                                                 dbname=self.connection_data.base_name
+                                                 )  # законектились
             self.__connected = True
             return True
 
@@ -145,7 +144,7 @@ class MySQLconnector:
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user},
-                          logging_level='ERROR', exception_mistake=True)
+                          logging_level='ERROR', exception=True)
             return None
 
     def disconnect(self) -> bool or None:
@@ -170,7 +169,7 @@ class MySQLconnector:
                           logging_data={'base_name': self.connection_data.base_name,
                                         'server': self.connection_data.server,
                                         'user': self.connection_data.user},
-                          logging_level='ERROR', exception_mistake=True)
+                          logging_level='ERROR', exception=True)
             return None
 
     def reconnect(self) -> bool or None:
@@ -189,7 +188,7 @@ class MySQLconnector:
                               logging_data={'base_name': self.connection_data.base_name,
                                             'server': self.connection_data.server,
                                             'user': self.connection_data.user},
-                              logging_level='ERROR', exception_mistake=True)
+                              logging_level='ERROR', exception=True)
                 result = None  # Чекаем ошибку
 
         else:  # Если нет
@@ -355,3 +354,4 @@ class MySQLconnector:
             cursor.close()
 
         return result
+

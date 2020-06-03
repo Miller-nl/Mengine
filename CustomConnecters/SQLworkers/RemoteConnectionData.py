@@ -2,11 +2,15 @@
 class RemoteConnectionData:
     '''
     Объект, хранящий данные для удалённого подключения к базе данных: драйвер, адрес, авторизацию.
+    Если объект используется для подключения к локальной БД, то у него заданы только движок и каталог.
+
 
     Методы и свойства:
         engine - название движка, на котором работает база (PostgreSQL, MySQL). Без версии
 
         base_name - имя базы данных
+
+        catalog - каталог базы
 
         host - хост
 
@@ -23,13 +27,15 @@ class RemoteConnectionData:
 
     def __init__(self,
                  engine: str,
-                 base_name: str,
-                 host: str, port: str or int,
+                 base_name: str = None,
+                 catalog: str = None,
+                 host: str = None, port: str or int = None,
                  user: str = None, password: str = None):
         '''
 
-        :param engine: название движка, на котором работает база (PostgreSQL, MySQL). Без версии
+        :param engine: название движка, на котором работает база (PostgreSQL, MySQL, SQLite). Без версии
         :param base_name: имя базы
+        :param catalog: каталог с файлом базы для SQLite
         :param host: адрес
         :param port: порт
         :param user: пользователь
@@ -38,8 +44,12 @@ class RemoteConnectionData:
 
         self.__engine = engine
         self.__base_name = base_name
+        self.__catalog = catalog
         self.__host = host
-        self.__port = int(port)
+        if port is None:
+            self.__port = port
+        else:
+            self.__port = int(port)
         self.__user = user
         self.__password = password
 
@@ -56,7 +66,7 @@ class RemoteConnectionData:
         return self.__engine
 
     @property
-    def base_name(self) -> str:
+    def base_name(self) -> str or None:
         '''
         Имя базы
 
@@ -65,7 +75,16 @@ class RemoteConnectionData:
         return self.__base_name
 
     @property
-    def host(self) -> str:
+    def catalog(self) -> str or None:
+        '''
+        Для SQLite это каталог базы
+
+        :return: строка с каталогом
+        '''
+        return self.__catalog
+
+    @property
+    def host(self) -> str or None:
         '''
         Хост
 
@@ -74,7 +93,7 @@ class RemoteConnectionData:
         return self.__host
 
     @property
-    def port(self) -> int:
+    def port(self) -> int or None:
         '''
         Порт в виде строки
 
@@ -83,7 +102,7 @@ class RemoteConnectionData:
         return self.__port
 
     @property
-    def user(self) -> str:
+    def user(self) -> str or None:
         '''
         имя пользователя
 
@@ -92,7 +111,7 @@ class RemoteConnectionData:
         return self.__user
 
     @property
-    def password(self) -> str:
+    def password(self) -> str or None:
         '''
         пароль
 

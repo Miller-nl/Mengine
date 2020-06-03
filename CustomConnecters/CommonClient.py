@@ -31,12 +31,14 @@
 '''
 Сделать текущий класс как обёртку для работы с БД
 '''
-from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from ..Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 from ..Logging.CommonFunctions.ForFailedMessages import FailedMessages
 
-from SystemCore.SQLconnectors.SQLworkers.RemoteConnectionData import RemoteConnectionData, DefaultDB
-from SystemCore.SQLconnectors.SQLworkers.PostgreSQL import PostgreSQLconnector
-from SystemCore.SQLconnectors.SQLworkers.MySQL import MySQLconnector
+from .SQLworkers.RemoteConnectionData import RemoteConnectionData, DefaultDB
+
+from .SQLworkers.PostgreSQL import PostgreSQLconnector
+from .SQLworkers.MySQL import MySQLconnector
+from .SQLworkers.LiteSQL import SQLiteConnector
 
 update_statements = ['CREATE', 'DROP', 'ALTER', 'INSERT', 'DELETE', 'UPDATE']
 
@@ -204,6 +206,11 @@ class SQLcommunicator:
             self.__Worker = MySQLconnector(connection_data=connection_data,
                                            logger=self._Logger, parent_name=self.__my_name,
                                            requests_logging=failed_requests_logging)
+
+        elif connection_data.engine == 'SQLite':
+            self.__Worker = SQLiteConnector(connection_data=connection_data,
+                                            logger=self._Logger, parent_name=self.__my_name,
+                                            requests_logging=failed_requests_logging)
 
         else:  # Если не опознан исполнитель
             self.__to_log(message='Исполнитель не опознан',

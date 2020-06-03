@@ -1,21 +1,18 @@
-'''
-Модуль для общения с PostgreSQL
+import sqlite3
 
-'''
+from ..SQLworkers.RemoteConnectionData import RemoteConnectionData
+from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
-import psycopg2
-
-from SystemCore.SQLconnectors.SQLworkers.RemoteConnectionData import RemoteConnectionData
-from SystemCore.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 # ------------------------------------------------------------------------------------------------
 # Выполнение запросов ----------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-class PostgreSQLconnector:
+class SQLiteConnector:
     '''
-    Модуль для обращения в PostgerSQL базу.
+    Модуль для обращения в SQLlite базу.
 
     Методы и свойства
+
         Логирование:
             _Logger - логгер
 
@@ -43,8 +40,8 @@ class PostgreSQLconnector:
 
             request_fetch_value() - получает нулевое значение нулевой строки
 
-    '''
 
+    '''
     def __init__(self,
                  connection_data: RemoteConnectionData,
                  logger: CommonLoggingClient = None, parent_name: str = None,
@@ -59,13 +56,12 @@ class PostgreSQLconnector:
 
         self.__connection_data = connection_data  # заберём данные для соединения с базой
 
-        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
-                                                                      logger=logger, parent_name=parent_name)
-
         self.__requests_logging = requests_logging
 
         self.__connected = False  # Переменная, разрешающая/запрещающая работу с запросами
 
+        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
+                                                                      logger=logger, parent_name=parent_name)
 
     # ------------------------------------------------------------------------------------------------
     # Логирование ------------------------------------------------------------------------------------
@@ -130,21 +126,14 @@ class PostgreSQLconnector:
 
         # Пробуем законнектиться
         try:
-            self.__connection = psycopg2.connect(host=self.connection_data.host,
-                                                 port=self.connection_data.port,
-                                                 user=self.connection_data.user,
-                                                 password=self.connection_data.password,
-                                                 dbname=self.connection_data.base_name
-                                                 )  # законектились
+            self.__connection = sqlite3.connect(database=self.connection_data.catalog)  # законектились
             self.__connected = True
             return True
 
         except BaseException:
             self.__to_log(message=f'Подключение к базе провалено',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user},
-                          logging_level='ERROR', exception=True)
+                          logging_data={'catalog': self.connection_data.catalog},
+                          logging_level='ERROR', exception_mistake=True)
             return None
 
     def disconnect(self) -> bool or None:
@@ -166,10 +155,8 @@ class PostgreSQLconnector:
             self.__connected = False
 
             self.__to_log(message='Отключение от базы провалено. Объект соединения удалён.',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user},
-                          logging_level='ERROR', exception=True)
+                          logging_data={'catalog': self.connection_data.catalog},
+                          logging_level='ERROR', exception_mistake=True)
             return None
 
     def reconnect(self) -> bool or None:
@@ -185,10 +172,8 @@ class PostgreSQLconnector:
             except BaseException:
                 self.__connected = False  # Чекаем отсутствие соединения
                 self.__to_log(message='Переподключение к базе провалено',
-                              logging_data={'base_name': self.connection_data.base_name,
-                                            'server': self.connection_data.server,
-                                            'user': self.connection_data.user},
-                              logging_level='ERROR', exception=True)
+                              logging_data={'catalog': self.connection_data.catalog},
+                              logging_level='ERROR', exception_mistake=True)
                 result = None  # Чекаем ошибку
 
         else:  # Если нет
@@ -229,9 +214,7 @@ class PostgreSQLconnector:
                 request = self.__requests_logging  # заменим его
 
             self.__to_log(message='Отправка данных в базу провалена.',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user,
+                          logging_data={'catalog': self.connection_data.catalog,
                                         'request': request},
                           logging_level='ERROR', exception=True)
             result = None
@@ -264,9 +247,7 @@ class PostgreSQLconnector:
             if not self.__requests_logging:  # Если запрос не логируется
                 request = self.__requests_logging  # заменим его
             self.__to_log(message='Получение данных из базы провалено.',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user,
+                          logging_data={'catalog': self.connection_data.catalog,
                                         'request': request},
                           logging_level='ERROR', exception=True)
             result = None  # Установим ошибку на экспорт
@@ -303,9 +284,7 @@ class PostgreSQLconnector:
             if not self.__requests_logging:  # Если запрос не логируется
                 request = self.__requests_logging  # заменим его
             self.__to_log(message='Получение данных из базы провалено.',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user,
+                          logging_data={'catalog': self.connection_data.catalog,
                                         'request': request},
                           logging_level='ERROR', exception=True)
             result = None
@@ -344,9 +323,7 @@ class PostgreSQLconnector:
             if not self.__requests_logging:  # Если запрос не логируется
                 request = self.__requests_logging  # заменим его
             self.__to_log(message='Получение данных из базы провалено.',
-                          logging_data={'base_name': self.connection_data.base_name,
-                                        'server': self.connection_data.server,
-                                        'user': self.connection_data.user,
+                          logging_data={'catalog': self.connection_data.catalog,
                                         'request': request},
                           logging_level='ERROR', exception=True)
             result = errors_placeholder
@@ -354,4 +331,8 @@ class PostgreSQLconnector:
             cursor.close()
 
         return result
+
+
+
+
 

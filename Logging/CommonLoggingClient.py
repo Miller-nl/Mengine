@@ -43,9 +43,9 @@
 
 import datetime
 
-from SystemCore.Logging.CommonFunctions.ExceptionAndTrace import prepare_exception, prepare_trace
-from SystemCore.Logging.CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
-from SystemCore.Logging.CommonFunctions.ForFailedMessages import FailedMessages
+from .CommonFunctions.ExceptionAndTrace import prepare_exception, prepare_trace
+from .CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
+from .CommonFunctions.ForFailedMessages import FailedMessages
 
 # ------------------------------------------------------------------------------------------------
 # Вспомогательные функции ------------------------------------------------------------------------

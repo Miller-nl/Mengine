@@ -26,7 +26,7 @@ def simple_check(table: str,
     check_request = ("SELECT " +
                      "CASE " +
                      " WHEN EXISTS " +
-                     f"(SELECT TOP (1) 1 FROM {table} {where_value}) " +
+                     f"(SELECT * FROM {table} {where_value}) " +
                      "THEN True ELSE False END")
     return check_request
 
@@ -48,14 +48,14 @@ def simple_update(table: str,
 
     if len(set_values) > 1:  # Если более одного значения в списке
         for el in set_values[:-1]:
-            request += f" {el[0][0]}={el[0][1]}, "
+            request += f" {el[0]}={el[1]}, "
     request += f" {set_values[-1][0]}={set_values[-1][1]}"
 
     if where is not None:  # Если условие задано
         request += ' WHERE '
         if len(where) > 1:  # Если более одного значения в списке
             for el in where[:-1]:
-                request += f" {el[0][0]}={el[0][1]} AND "
+                request += f" {el[0]}={el[1]} AND "
         request += f" {where[-1][0]}={where[-1][1]}"
 
     return request
@@ -133,7 +133,7 @@ def get_string_parameters(table: str,
     # Соберём названия столбцов для SELECT
     select_parameters = ''
     if len(parameters_list) > 1:
-        for el in parameters_list:
+        for el in parameters_list[:-1]:
             select_parameters += str(el) + ', '
     select_parameters += str(parameters_list[-1]) + ' '  # Добавим последнюю
 
