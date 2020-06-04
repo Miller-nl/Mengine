@@ -3,6 +3,8 @@ import os  # для работы с файлами
 import sys
 import configparser
 
+from ..Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+
 # Протянуть логер
 # Протянуть "извлечь схему из каталога"
 # Добавить статичные функции создания/удаления каталога и файлов в нём
@@ -29,49 +31,59 @@ class CatalogsManager:
         универсальности.
 
     Методы и свойства
-        main_path - "основной" каталог (в котором развёрнута структура папок).
+        Логирование
+            _Logger - логгер
 
+            _sub_module_name - "под имя", использующееся при логировании
 
-        sections - список названий секций
+            _to_log - функция логирования
 
-        check_section() - проверка существования секции
+        Работа с файлами
+            main_path - "основной" каталог (в котором развёрнута структура папок).
 
-        get_section_path() - получение абсолютного каталога секции
+            get_files_list() - получение списка файлов в секции или опции
 
-        add_section() - добавление секции
+            get_sub_catalogs_list() - получение списка подкаталогов в секции или опции
 
-        del_section() - удаление секции
+        Секции
+            sections - список названий секций
 
+            check_section() - проверка существования секции
 
-        get_options() - получение опций секции
+            get_section_path() - получение абсолютного каталога секции
 
-        check_option() - проверка наличия опции
+            add_section() - добавление секции
 
-        get_option_path() - получение абсолютного каталога опции
+            del_section() - удаление секции
 
-        add_option() - добавление опции
+        Опции
+            get_options() - получение опций секции
 
-        del_option() - удаление опции
+            check_option() - проверка наличия опции
 
+            get_option_path() - получение абсолютного каталога опции
 
-        get_files_list() - получение списка файлов в секции или опции
+            add_option() - добавление опции
 
-        get_sub_catalogs_list() - получение списка подкаталогов в секции или опции
-
-        _mistakes - список ошибок, полученных при работе с каталогами (.append(sys.exc_info()))
+            del_option() - удаление опции
 
     '''
 
     __section_path_name = 'section_path'  # Название опции с основным каталогом секции
 
-    def __init__(self, main_path: str):
+    def __init__(self, main_path: str,
+                 logger: CommonLoggingClient = None, parent_name: str = None):
         '''
 
         :param main_path: основной каталог с данными. В нём будет создан подкаталог для процесса "process_name"
             процесса, в подкаталоге которого процесс будет хранить свои данные.
+        :param logger: логер. Если логер не указан, будет добавлен собственный
+        :param parent_name: имя родительского модуля.
         '''
 
-        self.__mistakes = []  # свой список ошибок
+        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
+                                                                      logger=logger, parent_name=parent_name)
+
         self.__main_path = os.path.abspath(main_path)  # Форматнём путь
 
         # Объект для хранения секций (основных подкаталогов) и опций (подкаталогов секций)
@@ -90,7 +102,37 @@ class CatalogsManager:
         return
 
     # ------------------------------------------------------------------------------------------------
-    # Основные доступы -------------------------------------------------------------------------------
+    # Логирование ------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
+    @property
+    def _Logger(self) -> CommonLoggingClient:
+        '''
+        Логер, использующийся в объекте
+
+        :return: логер
+        '''
+        return self.__Logger
+
+    @property
+    def _to_log(self) -> object:
+        '''
+        Отдаёт функцию логирования, которая используется в работе
+
+        :return: функция
+        '''
+        return self.__to_log
+
+    @property
+    def _my_name(self) -> str:
+        '''
+        Отдаёт строку с полным структурным навзванием модуля
+
+        :return: строку
+        '''
+        return self.__my_name
+
+    # ------------------------------------------------------------------------------------------------
+    # Работа с каталогами ----------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     @property
     def main_path(self) -> str:
@@ -101,19 +143,6 @@ class CatalogsManager:
         '''
         return self.__main_path
 
-    @property
-    def _mistakes(self) -> list:
-        '''
-        Общий параметр
-        Функция отдаёт ошибки, полученные при работе логера. Ошибки извлекаются через sys.exc_info().
-
-        :return: копия спискаошибок
-        '''
-        return self.__mistakes.copy()
-
-    # ------------------------------------------------------------------------------------------------
-    # Работа с каталогами ----------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
     def __drop_directory(self, directory: str) -> bool or None:
         '''
         Функция иттеративно удаляет все файлы в указанной директории, проверяет все её папки, выполняя удаление внутри
@@ -127,15 +156,19 @@ class CatalogsManager:
         objects_list = os.listdir(directory)  # Полуичм список объектов в каталоге
         errors = 0
         for element in objects_list:  # Погнали по объектам
-            element = os.path.join(directory, element)  # Делаем абсолютный путь
-            if os.path.isfile(element):  # Если это файл
+            file_name = os.path.join(directory, element)  # Делаем абсолютный путь
+            if os.path.isfile(file_name):  # Если это файл
                 try:
-                    os.remove(element)  # Удаляем его
+                    os.remove(file_name)  # Удаляем его
                 except BaseException:
+                    self.__to_log(message='Ошибка удаления файла.',
+                                  logging_data={'file_name': file_name},
+                                  logging_level='ERROR')
+
                     errors += 1  # Крутанём счётчик ошибок
 
             else:  # Если это каталог
-                self.__drop_directory(directory=element)  # Запросим его зачистку
+                self.__drop_directory(directory=file_name)  # Запросим его зачистку
                 # Тут счётчик не надо - если были ошибки в подкаталогах, то try/except завалится
 
         # Теперь попробуем дропнуть саму директорию
@@ -147,6 +180,9 @@ class CatalogsManager:
                 return True  # Вернём статус успешного овыполнения
 
         except OSError:  # исключая ошибку
+            self.__to_log(message='Ошибка удаление директории.',
+                          logging_data={'directory': directory},
+                          logging_level='ERROR')
             return None
 
 
@@ -216,7 +252,10 @@ class CatalogsManager:
                                   value=section_folder)  # Ставим каталог
                 return True
             except BaseException:  # если был косяк
-                self.__mistakes.append(sys.exc_info())  # Логируем
+                self.__to_log(message='Добавление секции в набор каталогов провалено.',
+                              logging_data={'section_name': section_name,
+                                            'section_folder': section_folder},
+                              logging_level='ERROR')
                 return None
 
     def del_section(self, section_name: str or int,
@@ -316,7 +355,13 @@ class CatalogsManager:
                 return True  # Закончим, вернув статус успешности
 
             except BaseException:  # если был косяк
-                self.__mistakes.append(sys.exc_info())  # Логируем
+                self.__to_log(message='Добавление секции в набор каталогов провалено.',
+                              logging_data={'section_name': section_name,
+                                            'main_path': self.main_path,
+                                            'section_path': self.get_section_path(section_name=section_name),
+                                            'option_folder': option_folder,
+                                            },
+                              logging_level='ERROR')
                 return None
 
         elif check_option is True:  # Если опция есть
