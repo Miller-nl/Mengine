@@ -152,6 +152,9 @@ class JsonLogger:
             False - "данные" были срезаны из-за ошибок отправки, но само сообщение доставлено;
             None - сообщение не залогировано.
         '''
+        if not os.access(self.__journal_file, os.F_OK):  # Если файла нет
+            return None  # ошибка
+
         try:
             with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
                 if isinstance(message, dict):

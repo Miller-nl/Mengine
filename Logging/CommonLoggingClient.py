@@ -43,14 +43,10 @@
 
 import datetime
 
-from .CommonFunctions.ExceptionAndTrace import prepare_exception, prepare_trace
 from .CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
 from .CommonFunctions.ForFailedMessages import FailedMessages
 from .CommonFunctions.Message import Message
 
-# ------------------------------------------------------------------------------------------------
-# Вспомогательные функции ------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------
 
 
 # ------------------------------------------------------------------------------------------------
@@ -315,7 +311,7 @@ class CommonLoggingClient:
             None - ошибка типа (нет указанной функции логирования).
         '''
         try:  # Валидация
-            logging_function = writer.__getattribute__(name='log_dto')
+            logging_function = writer.__getattribute__('log_dto')
         except AttributeError:  # Если нет функции логирования
             # Логируем ошибку
             self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
