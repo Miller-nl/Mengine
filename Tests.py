@@ -1,8 +1,9 @@
-from SystemCore.SQLconnectors.Connectors import MySQLconnector
-from SystemCore.SQLconnectors.Connectors import RemoteBaseConnectionData
 
-CD = RemoteBaseConnectionData(base_name='parser',
-                              host='seo-mysql.bazadev.net', port=3306,
-                              user='parser', password='Oyoo8laeNgegho')
 
-SC = MySQLconnector(connection_data=CD)
+from Logging.CommonLoggingClient import CommonLoggingClient
+from Logging.LoggingWorkers.LoggingToJSON import JsonLogger
+
+JL = JsonLogger('D:\Projects\Tests')
+CLC = CommonLoggingClient('Тест 1')
+CLC.add_writer(JL, 'JL')
+CLC.to_log('Mes 1')
