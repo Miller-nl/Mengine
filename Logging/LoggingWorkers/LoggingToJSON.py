@@ -1,10 +1,10 @@
 import json
 import datetime
 import os
-import sys
 
 from ..CommonFunctions.LoggingLevels import int_logging_level, logging_levels
 from ..CommonFunctions.ForFailedMessages import FailedMessages
+from ..CommonFunctions.Message import Message
 
 class JsonLogger:
     '''
@@ -21,8 +21,9 @@ class JsonLogger:
 
         are_messages_cool_yet - все ли сообщения успешно записаны
 
-        failed_messages_container - контейнер с упавшими сообщениями
+        _FailedMessages - контейнер с упавшими сообщениями
 
+        _LoggerErrors - ошибки логера
 
         log_dto() - непосредственно функция для логирования
     '''
@@ -45,12 +46,13 @@ class JsonLogger:
         self.__default_logging_level = int_logging_level(logging_level=logging_level,
                                                          default_level=10)  # Установим уровень лога
 
-        self.__mistakes = []  # Список ошибок логера (как лог логера)
+        self.__LoggerErrors = FailedMessages(maximum_list_length=remember_failed_requests)
+        self.__FailedMessages = FailedMessages(maximum_list_length=remember_failed_requests)
 
         # Создадим файл журнала если его нет
         self.__prepare_file(journals_catalog=journals_catalog, journal_file=journal_file)
 
-        self.__failed_messages = FailedMessages(maximum_list_length=remember_failed_requests)
+
 
     def __prepare_file(self, journals_catalog: str, journal_file: str = None) -> bool or None:
         '''
@@ -75,11 +77,13 @@ class JsonLogger:
             if not os.access(self.__journal_file, os.F_OK):  # Если файла нет, создадим
                 with open(self.__journal_file, "w", encoding="utf-8") as f:
                     pass
-        except FileNotFoundError:  # Если нет каталога
-            self.__mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
-            return None
-        except OSError:  # Если косячное имя файла
-            self.__mistakes.append(sys.exc_info())  # Список ошибок логера (как лог логера)
+        except BaseException:  # Если нет каталога или косячное имя
+            self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                           message=Message(message='Ошибка установки файла для логирования.',
+                                                           logging_level=30,
+                                                           logging_data={'journal_file': self.__journal_file}
+                                                           )
+                                           )
             return None
 
         return True  # Если всё ок
@@ -113,41 +117,73 @@ class JsonLogger:
 
         :return: True - не было сообщений, проваленых воркерами; False - были
         '''
-        if not self.failed_messages_container.fails_amount:  # Если количество упавших сообщений ноль
+        if not self._FailedMessages.fails_amount:  # Если количество упавших сообщений ноль
             return True
         else:
             return False  # Если более нуля сообщений провалены хоть одним воркером
 
     @property
-    def failed_messages_container(self) -> FailedMessages:
+    def _FailedMessages(self) -> FailedMessages:
         '''
         Получение контейнра првоаленных сообщений
 
         :return: объект со списком упавшиъх сообщений
         '''
-        return self.__failed_messages
+        return self.__FailedMessages
+
+    @property
+    def _LoggerErrors(self) -> FailedMessages:
+        '''
+        Получение контейнра с ошибками в работе логера.
+
+        :return: объект со списком сообщений об ошибках
+        '''
+        return self.__LoggerErrors
 
     # ---------------------------------------------------------------------------------------------
     # Функции логирования -------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
-    def log_dto(self, dto: dict or str) -> bool:
+    def log_dto(self, message: dict or list or str or Message) -> bool or None:
         '''
         Функция логирует в json файл.
 
-        :param dto: словарь-DTO, или уже готовая json строка лога.
-        :return: успешность добавления сообщения
+        :param message: словарь-DTO, или уже готовая json строка лога, или форматное сообщение Message.
+        :return: успешность добавления сообщения: True - полностью успешно;
+            False - "данные" были срезаны из-за ошибок отправки, но само сообщение доставлено;
+            None - сообщение не залогировано.
         '''
         try:
             with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
-                if isinstance(dto, dict):
-                    json.dump(dto, write_file)
-                elif isinstance(dto, str):
-                    json.dump(json.loads(dto), write_file)
+                if isinstance(message, dict):
+                    json.dump(message, write_file)
+                if isinstance(message, Message):
+                    json.dump(message.get_dict(trimmed=False), write_file)
+                elif isinstance(message, str):
+                    json.dump(json.loads(message), write_file)
 
                 write_file.write('\n')
                 write_file.flush()
             return True
         except BaseException:  # При ошибке записи
-            self.failed_messages_container.add_message(workers_names=self.__class__.__name__, message=dto)
-            return False
+            self._FailedMessages.add_message(workers_names=self.__class__.__name__, message=message)
+            self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                           message=Message(message='Ошибка записи полного сообщения.',
+                                                           logging_level=30,
+                                                           logging_data={'journal_file': self.__journal_file}
+                                                           )
+                                           )
+            if isinstance(message, Message):  # Если это контейнер
+                try:
+                    with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
+                        json.dump(message.get_dict(trimmed=True), write_file)
 
+                    return False  # Вернём, что сообщение оптправлено с ошибкой
+                except BaseException:
+                    self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                                   message=Message(message='Ошибка записи укороченного сообщения.',
+                                                                   logging_level=30,
+                                                                   logging_data={'journal_file': self.__journal_file}
+                                                                   )
+                                                   )
+
+            return None  # Если завален стандартный вывод и "укороченный" тоже

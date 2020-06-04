@@ -291,3 +291,35 @@ class Message:
         '''
         return self.__time
 
+    # ---------------------------------------------------------------------------------------------
+    # Экспорт -------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    def get_dict(self, trimmed: bool = False) -> dict:
+        '''
+        Функция подготавливает словарь, если это требуется.
+        :param trimmed: сократить ли сообщение? False - нет; True - исключить данные logging_data и additional_data
+        :return: словарь
+        '''
+        export_dict = {}
+
+        export_dict['time'] = self.time
+
+        export_dict['process_name'] = self.process_name
+        export_dict['session_key'] = self.session_key
+        export_dict['main_module_name'] = self.main_module_name
+        export_dict['submodule_name'] = self.submodule_name
+        export_dict['function_name'] = self.function_name
+
+        export_dict['message'] = self.message
+        export_dict['logging_level'] = self.logging_level
+        export_dict['exception'] = self.exception
+        export_dict['trace'] = self.trace
+
+        if not trimmed:  # Если отдавать всё
+            export_dict['logging_data'] = self.logging_data
+            export_dict['additional_data'] = self.additional_data
+
+        export_dict['trimmed'] = trimmed
+
+        return export_dict
+

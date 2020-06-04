@@ -43,26 +43,15 @@
 
 import datetime
 
-from SystemCore.Logging.CommonFunctions.ExceptionAndTrace import prepare_exception, prepare_trace
-from SystemCore.Logging.CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
-from SystemCore.Logging.CommonFunctions.ForFailedMessages import FailedMessages
+from .CommonFunctions.ExceptionAndTrace import prepare_exception, prepare_trace
+from .CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
+from .CommonFunctions.ForFailedMessages import FailedMessages
+from .CommonFunctions.Message import Message
 
 # ------------------------------------------------------------------------------------------------
 # Вспомогательные функции ------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-def get_function_name(drop_last: int = 0) -> str:
-    '''
-    Фукнция отдаёт "короткое" (относительно trace) название функции.
 
-    :param drop_last: сколько вызывающих функций скинуть с конца следа? (кроме этой)
-    :return: фортманая строка вида:  obj1.obj2...func
-    '''
-    trace = prepare_trace(trace=True, drop_last=drop_last + 1)  # Скидываем сколько сказано + себя
-    export_str = ''
-    for el in trace:
-        export_str += str(el.name) + '.'
-    export_str = export_str[:-1]  # Дропаем последнюю точку
-    return export_str
 
 # ------------------------------------------------------------------------------------------------
 # Клиент логирования -----------------------------------------------------------------------------
@@ -77,6 +66,7 @@ class CommonLoggingClient:
 
     Если не указан ни один воркер, то все сообщения упадут в контейнер _FailedMessages и будут доступны
         из него.
+    В качестве воркера может выступать что угодно, имеющее функцию log_dto(message: Message, **kwargs).
 
     Свойства и методы:
         Опознавательные данные:
@@ -84,7 +74,7 @@ class CommonLoggingClient:
 
             process_name - имя процесса, в котором запущен модуль
 
-            session_name - имя сессии, в которой работает модуль
+            session_key - имя сессии, в которой работает модуль
 
         О сообщениях логера:
             default_logging_level - уровень логирования поумолчанию
@@ -97,6 +87,8 @@ class CommonLoggingClient:
 
             _FailedMessages - получение контейнера с "упавшими" сообщениями. Запросить у контейнера
                 сообщения можно через ".failed_requests"
+
+            _LoggerErrors - контейнер с сообщениями об ошибках работы самого логера
 
         Создание форматной структуры имён:
             create_subname() - функция создаёт имя модуля
@@ -118,7 +110,7 @@ class CommonLoggingClient:
 
     def __init__(self,
                  main_module_name: str,
-                 process_name: str = None, session_name: str = None,
+                 process_name: str = None, session_key: str or int = None,
                  logging_level: str or int = 'DEBUG',
                  remember_failed_requests: int = 120,
                  log_initialization: bool = False):
@@ -126,7 +118,7 @@ class CommonLoggingClient:
 
         :param main_module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
         :param process_name: имя процесса, в котором задействуется модуль (секция)
-        :param session_name: имя сессии - запуска (опция)
+        :param session_key: ключ сессии или порядковый номер запуска, если требуется.
         :param logging_level: Уровень логирования, использующийся по дефолту в случаях, когда заданный уровень
             сообщения не опознан.
         :param remember_failed_requests: количество сообщений, которые будут заполнены в случае отказа воркера. 0 - все.
@@ -136,7 +128,7 @@ class CommonLoggingClient:
 
         self.__main_module_name = main_module_name  # Имя модуля
         self.__process_name = process_name  # Имя процесса
-        self.__session_name = session_name  # Имя модуля
+        self.__session_key = session_key  # Имя модуля
 
         self.__default_logging_level = int_logging_level(logging_level=logging_level,
                                                          default_level=10)
@@ -145,7 +137,8 @@ class CommonLoggingClient:
 
         self._reset_error_counter()  # заводит self.__error_counter
 
-        self.__failed_messages = FailedMessages(maximum_list_length=remember_failed_requests)
+        self.__LoggerErrors = FailedMessages(maximum_list_length=remember_failed_requests)
+        self.__FailedMessages = FailedMessages(maximum_list_length=remember_failed_requests)
 
         if log_initialization is True:  # Если надо логировать загрузку
             # Модуль логирования всегда подключается в ините объектов.
@@ -176,7 +169,7 @@ class CommonLoggingClient:
         return self.__process_name
 
     @property
-    def session_name(self) -> str:
+    def session_key(self) -> str:
         '''
         Общий параметр
         Имя запуска процесса, в котором использует данный логер. Причём это имя, созданное менеджером процесса.
@@ -184,7 +177,7 @@ class CommonLoggingClient:
 
         :return: строка с именем запуска - сессии
         '''
-        return self.__session_name
+        return self.__session_key
 
     @property
     def default_logging_level(self) -> int:
@@ -289,7 +282,16 @@ class CommonLoggingClient:
 
         :return: объект со списком упавшиъх сообщений
         '''
-        return self.__failed_messages
+        return self.__FailedMessages
+
+    @property
+    def _LoggerErrors(self) -> FailedMessages:
+        '''
+        Ошибки в работе логера
+
+        :return:
+        '''
+        return self.__LoggerErrors
 
     # ---------------------------------------------------------------------------------------------
     # Писатели лога -------------------------------------------------------------------------------
@@ -299,28 +301,35 @@ class CommonLoggingClient:
         '''
         Отдаёт словарь модулей, пишущих лог.
 
-        :return: Словарь tuple-ов {name: (writer, logging_function)}
+        :return: Словарь {name: writer}
         '''
         return self.__writers_dict.copy()
 
-    def add_writer(self, writer: object, name: int or str,
-                   function_name: str = 'to_log') -> bool or None:
+    def add_writer(self, writer: object, name: int or str) -> bool or None:
         '''
         Функция добавляет объект, пищущий лог.
 
-        :param writer: писатель
+        :param writer: писатель, имеющий функцию log_dto(message: Message, **kwargs)
         :param name: имя писателя
-        :param function_name: имя функции, выполняющей логирование.
         :return: статус добавления: True - всё ок, Fasle - имя занято,
             None - ошибка типа (нет указанной функции логирования).
         '''
         try:  # Валидация
-            logging_function = writer.__getattribute__(name=function_name)
+            logging_function = writer.__getattribute__(name='log_dto')
         except AttributeError:  # Если нет функции логирования
+            # Логируем ошибку
+            self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                           message=Message(message=('Ошибка установки writer-a сообщений. ' +
+                                                                    'Функция отправки сообщений не обнаружена.'),
+                                                           logging_level=30,
+                                                           logging_data={'name': name,
+                                                                         'writer_type': type(writer)}
+                                                           )
+                                           )
             return None
 
         if name not in self.__writers_dict.keys():  # Првоерим в списке
-            self.__writers_dict[name] = (writer, logging_function)
+            self.__writers_dict[name] = writer
             return True
         else:
             return False
@@ -398,10 +407,12 @@ class CommonLoggingClient:
             следа внутри функции. Если задан exception_mistake, то trace игнорируется.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
-        :return: статус отправки сообщения: True - все успешно, False - кто-то упал, None - ушло только
-            в контенер с проваленными.
+        :return: статус отправки сообщения:
+            True - все успешно;
+            False - сообщение отправлено целиком хотябы одним воркером;
+            None - отправка полностью провалена, или все воркеры отправили только
+                сокращённые сообщения, сообщение записано в контенер _FailedMessages.
         '''
-
         DTO = self._prepare_dto(message=message,
                                 function_name=function_name,
                                 submodule_name=submodule_name,
@@ -425,7 +436,7 @@ class CommonLoggingClient:
                      logging_data: object = None,
                      exception: tuple or bool = True,
                      trace: list or bool = False,
-                     **kwargs) -> dict:
+                     **kwargs) -> Message:
         '''
         Функция для подготовки форматного DTO для сообщения
 
@@ -455,7 +466,7 @@ class CommonLoggingClient:
             следа внутри функции. Если задан exception_mistake, то trace игнорируется.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
-        :return: словарь на отправку
+        :return: форматный контейнер сообщения - Message.
         '''
 
         logging_level = int_logging_level(logging_level=logging_level, default_level=self.default_logging_level)
@@ -464,95 +475,75 @@ class CommonLoggingClient:
 
         # Скорректируем уровень лога, если нужно
         if exception is not False:  # Если переданы данные об исключении
-            if logging_level in ['DEBUG', 'INFO']:  # Если уровень логирования низок
-                logging_level = 'WARNING'  # Ставим "WARNING", так как в общем случае exception не всегда ERROR
+            if logging_level > 20:  # Если уровень логирования недостаточно высок
+                logging_level = 30  # Ставим "WARNING", так как в общем случае exception не всегда ERROR
 
-        # Выполним развёртку exception и traceback
-        exception = prepare_exception(exception_mistake=exception)
-        if exception is not None:  # Если исключение есть
-            trace = exception[1]  # отделили след
-            exception = exception[0]  # отделили сообщение
-        else:  # Если исключения нет
-            # Делаем след опционально
-            trace = prepare_trace(trace=trace, drop_last=2)  # Сбросим себя и "to_log" из следа
+        # Сделаем сообщение
+        export_message = Message(message=message,
+                                 logging_level=logging_level,
+                                 main_module_name=self.main_module_name,
+                                 process_name=self.process_name,
+                                 session_key=self.session_key,
+                                 function_name=function_name,
+                                 submodule_name=submodule_name,
+                                 logging_data=logging_data,
+                                 exception=exception,
+                                 trace=trace,
+                                 **kwargs)
+        return export_message
 
-        if function_name is False:
-            function_name = None
-        elif function_name is True:  # Если надо определить имя функции
-            function_name = get_function_name(drop_last=2)  # Берём имя "без себя" и "без функции логирования"
-        elif isinstance(function_name, str):
-            pass
-
-        logging_dto = {}  # DTO объект
-
-        logging_dto['time'] = str(datetime.datetime.now())
-        logging_dto['logging_level'] = int_logging_level(logging_level=logging_level,
-                                                         default_level=self.default_logging_level)
-        logging_dto['main_module_name'] = self.main_module_name
-        logging_dto['submodule_name'] = submodule_name
-        logging_dto['process_name'] = self.process_name
-        logging_dto['session_name'] = self.session_name
-
-        logging_dto['message'] = message
-        logging_dto['request_trimmed'] = False  # был ли запрос "сокращён"
-
-        logging_dto['function_name'] = function_name
-
-        logging_dto['exception'] = exception
-        logging_dto['trace'] = trace
-
-        logging_dto['logging_data'] = logging_data
-
-        logging_dto['additional_data'] = kwargs
-
-        return logging_dto
-
-    def _send_dto(self, dto: dict) -> bool or None:
+    def _send_dto(self, dto: Message) -> bool or None:
         '''
         Функция отдаёт DTO в воркеры для логирования.
+        При результате None сообщение добавляется в контенер с проваленными - _FailedMessages.
 
         :param dto: DTO, уходящий в лог
-        :return: статус отправки сообщения: True - все успешно, False - кто-то упал, None - ушло только
-            в контенер с проваленными.
+        :return: статус отправки сообщения: True - все успешно, False - кто-то упал, но хотябы одно сообщение доставлено
+            целеком. None - ни один воркер не доставил сообщение целиком.
         '''
 
         if not len(self.__writers_dict):  # Если словарь пуст
             self._FailedMessages.add_message(workers_names=self.__class__.__name__, message=dto)
+
             # Логируем, что сам модуль закосячил (некому логировать)
             return None
 
-        missed_workers = []  # список с именами райтеров, которые не отправили DTO
+        missed_workers = {}  # словарь с результатами отправки
         for name in self.__writers_dict.keys():
             try:
-                send_result = self.__writers_dict[name][1](**dto)  # Отправляем через функцию форкера
-                well_done = send_result
+                missed_workers[name] = self.__writers_dict[name].log_dto(message=dto)  # Отправляем через функцию форкера
             except BaseException:
-                well_done = False
+                self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                               message=Message(message=('Ошибка отправки сообщения. ' +
+                                                                        'Функция отправки сообщений не обнаружена.'),
+                                                               logging_level=30,
+                                                               logging_data={'writer_name': name,
+                                                                             'writer_type': type(self.__writers_dict[name])}
+                                                               )
+                                               )
+                missed_workers[name] = None
 
-            if not well_done:  # Если завалено
-                missed_workers.append(name)  # запомним
-                # Пробуем отправить "основные данные"
-                first_keep = ['time', 'logging_level',
-                              'main_module_name', 'process_name', 'session_name',
-                              'message']
-                for key in list(dto.keys()):  # Проверим первичность ключа
-                    if not key in first_keep:
-                        dto.pop(key)  # Если не основной - сбрасываем
-                dto['request_trimmed'] = True  # Метим, что запрос сокращён
+        # Проверим результаты отпаравки
+        success = 0  # детектор того, что хоть один логер справился
+        for key in missed_workers.keys():
+            if missed_workers[key] is True:
+                success += 1
 
-                try:
-                    self.__writers_dict[name][1](**dto)  # Отправляем через функцию форкера
-                except BaseException:
-                    pass
-
-        if len(missed_workers):  # Если длина списка не ноль (но воркеры были)
-            self._FailedMessages.add_message(workers_names=missed_workers, message=dto)
-            if len(missed_workers) < len(self.writers_dict.keys()):
-                return False
-            else:
-                return None
-        else:
+        if success == len(self.__writers_dict.keys()):
             return True
+        elif success > 0:  # Если отправил хоть кто-то
+            return False
+        else:  # Если никто не отправил
+            self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                           message=Message(message=('Ошибка отправки сообщения. ' +
+                                                                    'Все логеры провалили отправку.'),
+                                                           logging_level=30,
+                                                           logging_data={'writer_name': name,
+                                                                         'writer_type': type(self.__writers_dict[name])}
+                                                           )
+                                           )
+            self._FailedMessages.add_message(workers_names=self.__class__.__name__, message=dto)
+            return None
 
 # ------------------------------------------------------------------------------------------------
 # Получение логера и имени модуля ----------------------------------------------------------------
