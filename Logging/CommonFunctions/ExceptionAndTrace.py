@@ -97,7 +97,7 @@ def prepare_trace(trace: list or bool = True,
     :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
         следа внутри функции. Если задан exception_mistake, то trace игнорируется.
     :param drop_last: количество последних элементов следа, которые мы сбросим
-    :return: Список со следом или None/
+    :return: Список со следом или None
     '''
     if trace is False:  # Если след брать не нужно
         trace = None

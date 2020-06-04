@@ -1,3 +1,5 @@
+from .MessagesPreparer import Message
+
 # ---------------------------------------------------------------------------------------------
 # Хранение упавших сообщений ------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------------
@@ -65,10 +67,10 @@ class FailedMessages:
         return
 
     def add_message(self, workers_names: str or int or list or tuple,
-                    message: str or list or dict):
+                    message: str or list or dict or Message):
         '''
         Функция добавляет в словарь
-        :param workers_names:
+        :param workers_names: имя "воркера", который добавил сообщение.
         :param message:
         :return:
         '''
