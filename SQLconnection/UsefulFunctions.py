@@ -1,62 +1,115 @@
 '''
 Функции для быстрой и удобной сборки простых запросов на вставку и обновление данных.
+Важно, что функции не обрабатывают значения, поданные на вставку, их требуется обработать до подачи в функции.
+
 '''
 
 from .UniversalConnector import SQLconnector
 
+
+def __prepare_key_is(values: dict or list,
+                     sep: str) -> str:
+    '''
+    Функция собарет данные из словаря в строку вида key1=value1, key2=value2, ... . Без скобок, чтобы
+        можно было использовать в WHERE с другими условиями, если требуется
+
+    :param values: словарь или список значений, где значение уже готово к вставке в запрос.
+    :param sep: разделитель: ',' или 'AND'
+    :return: строка для вставки
+    '''
+    export_string = ''
+    if isinstance(values, list):  # Если список
+        if len(values) > 1:  # Если более одного значения в списке
+            for el in values[:-1]:
+                export_string += f" {el[0]}={el[1]} {sep} "
+        export_string += f" {values[-1][0]}={values[-1][1]}"
+
+    else:  # Если это словарь
+        keys = list(values.keys())
+        for key in keys[:-1]:
+            export_string += f" {key}={values[key]} {sep} "
+
+        key = keys[-1]  # берём последний ключ
+        export_string += f" {key}={values[key]} "
+
+    return export_string
+
+
+# ------------------------------------------------------------------------------------------------
+# Функции обновления -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------
 def simple_check(table: str,
-                 where: list = None) -> str:
+                 where: list or dict = None) -> str:
     '''
     Функция для проверки наличия хотябы одной строки с указанными условиями.
 
     :param table: имя таблицы
-    :param where: список с элементами ('имя колонки', значение). Может быть пуст.
+    :param where: словарь или список с элементами ('имя колонки', значение). Может быть пуст.
     :return: запрос на проверку
     '''
-
-    if where is not None:  # если условие есть
-        where_value = ' WHERE '
-        if len(where) > 1:  # Если более одного значения в списке
-            for el in where[:-1]:
-                where_value += f" {el[0][0]}={el[0][1]} AND "
-        where_value += f" {where[-1][0]}={where[-1][1]}"
-    else:
-        where_value = ''  # иначе условие пустое
+    where_value = __prepare_key_is(values=where, sep='AND')
+    if where_value != '':
+        where_value = 'WHERE ' + where_value
 
     check_request = ("SELECT " +
                      "CASE " +
                      " WHEN EXISTS " +
                      f"(SELECT * FROM {table} {where_value}) " +
-                     "THEN True ELSE False END")
+                     "THEN 1 ELSE 0 END")
     return check_request
 
+def simple_insert(table: str,
+                  set_values: list or dict) -> str:
+    '''
+    Фунекция для "простой" вставки строки с параметрами.
+
+    :param table: имя таблицы
+    :param set_values: словарь или список с элементами ('имя колонки', значение)
+    :return: запрос.
+    '''
+    columns = '('
+    values = '('
+    if isinstance(set_values, list):
+        if len(set_values) > 1:  # Если более одного значения в списке
+            for el in set_values[:-1]:
+                columns += f"{el[0]}, "
+                values += f"{el[1]}, "
+        columns += f"{set_values[-1][0]}"
+        values += f"{set_values[-1][1]}"
+
+    elif isinstance(set_values, dict):  # Если это словарь
+        keys = list(set_values.keys())
+        for key in keys[:-1]:
+            columns += f"{key}, "
+            values += f"{set_values[key]}, "
+        key = keys[-1]  # берём последний ключ
+        columns += f"{key}"
+        values += f"{set_values[key]}"
+
+    columns += ')'
+    values += ')'
+    request = f'INSERT INTO {table} {columns} VALUES {values}'
+
+    return request
 
 def simple_update(table: str,
-                  set_values: list,
-                  where: list = None) -> str:
+                  set_values: dict or list,
+                  where: dict or list = None) -> str:
     '''
     Функция для упрощения подготовки запроса на обновление данных в строках.
         Важно, что строковые значения уже должны быть обособлены 'кавычками'.
 
     :param table: имя таблицы
-    :param set_values: список с элементами ('имя колонки', значение)
-    :param where: список с элементами ('имя колонки', значение). Может быть пуст.
+    :param set_values: словарь или список с элементами ('имя колонки', значение)
+    :param where: словарь или список с элементами ('имя колонки', значение). Может быть пуст.
     :return: строка запроса на обновление
     '''
+    set_values_string = __prepare_key_is(values=set_values, sep=',')
+    request = f'UPDATE {table} SET {set_values_string}'
 
-    request = f'UPDATE {table} SET '
-
-    if len(set_values) > 1:  # Если более одного значения в списке
-        for el in set_values[:-1]:
-            request += f" {el[0]}={el[1]}, "
-    request += f" {set_values[-1][0]}={set_values[-1][1]}"
-
-    if where is not None:  # Если условие задано
-        request += ' WHERE '
-        if len(where) > 1:  # Если более одного значения в списке
-            for el in where[:-1]:
-                request += f" {el[0]}={el[1]} AND "
-        request += f" {where[-1][0]}={where[-1][1]}"
+    where_string = __prepare_key_is(values=where, sep='AND')
+    if where_string != '':  # если строка с условиями не пустая
+        request += f' WHERE {where_string}'
 
     return request
 
@@ -70,7 +123,9 @@ def add_values_set_separation(values_list: list,
         Основная задача состоит в дроблении большого запроса на комлект небольших.
     Функция делает работу "в лоб", без проверок элементов спсика и прочего.
 
-    :param values_list: список подготовленных значений в формате Str или tuple
+    :param values_list: список подготовленных значений в формате Str или tuple. Строковый формат предпочтителен,
+        так как y tuple строковый объект может быть ограничен двойными кавычками (1, "asd'dsa", 123) - это уронит
+        запрос.
     :param start_request: начало запроса, после которого будут вставлены значения
     :param end_request: добавка в конце запроса, если нужна
     :param step: шаг разбиения
@@ -104,14 +159,14 @@ def add_values_set_separation(values_list: list,
 
 def get_string_parameters(table: str,
                           communicator: SQLconnector,
-                          where: list = None) -> list or dict or None:
+                          where: dict or list = None) -> list or dict or None:
     '''
     Функция подготавливает словарь или список словарей, отвечающих найденным строкам. Индексами в словарях
         выступают навзвания столбцов, значения которых являются значениями словарей.
 
     :param table: имя таблицы
     :param communicator: SQL коммуникатор с функцией "request_fetch_all" для выполнения запросов.
-    :param where: список с элементами ('имя колонки', значение). Может быть пуст.
+    :param where: словарь или список с элементами ('имя колонки', значение). Может быть пуст.
     :return: словарь, если найдена одна строка, попадающая под указанное условие;
              список словарей если строк более одной;
              пустой словарь, если не найдено ни одной строки;
@@ -139,11 +194,9 @@ def get_string_parameters(table: str,
 
     # Соберём условие
     if where is not None:  # если условие есть
-        where_value = ' WHERE '
-        if len(where) > 1:  # Если более одного значения в списке
-            for el in where[:-1]:
-                where_value += f" {el[0][0]}={el[0][1]} AND "
-        where_value += f" {where[-1][0]}={where[-1][1]}"
+        where_value = __prepare_key_is(values=where, sep='AND')
+        if where_value != '':  # если условие непустое
+            where_value = ' WHERE ' + where_value
     else:
         where_value = ''  # иначе условие пустое
 

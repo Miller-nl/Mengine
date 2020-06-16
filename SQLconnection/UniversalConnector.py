@@ -423,7 +423,7 @@ class SQLconnector:
 
         # Пробуем законнектиться
         try:
-            self.__connection = self.__create_connection  # пробуем законектиться
+            self.__connection = self.__create_connection()  # пробуем законектиться
 
             if self.__connection is None:  # Если не удалось опознать движок (ошибка упадёт ниже)
                 return None
@@ -523,6 +523,7 @@ class SQLconnector:
                 pass
 
             if not self._failed_requests_logging:  # Если запрос не логируется
+                self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
                 request = self._failed_requests_logging  # заменим его
             self.__to_log(message='Отправка данных в базу провалена.',
                           logging_data={'engine': self.connection_data.engine,
@@ -531,9 +532,6 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-
-            self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
-
         finally:
             try:
                 cursor.close()
@@ -566,6 +564,7 @@ class SQLconnector:
                 pass
 
             if not self._failed_requests_logging:  # Если запрос не логируется
+                self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
                 request = self._failed_requests_logging  # заменим его
             self.__to_log(message='Получение данных из базы провалено.',
                           logging_data={'engine': self.connection_data.engine,
@@ -574,9 +573,6 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-
-
-            self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
 
         finally:
             try:
@@ -613,6 +609,7 @@ class SQLconnector:
                 pass
 
             if not self._failed_requests_logging:  # Если запрос не логируется
+                self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
                 request = self._failed_requests_logging  # заменим его
 
             self.__to_log(message='Получение данных из базы провалено.',
@@ -622,9 +619,6 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-
-            self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
-
         finally:
             try:
                 cursor.close()
@@ -663,6 +657,7 @@ class SQLconnector:
                 pass
 
             if not self._failed_requests_logging:  # Если запрос не логируется
+                self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
                 request = self._failed_requests_logging  # заменим его
             self.__to_log(message='Получение данных из базы провалено.',
                           logging_data={'engine': self.connection_data.engine,
@@ -671,9 +666,6 @@ class SQLconnector:
                                         'user': self.connection_data.user,
                                         'request': request},
                           logging_level='ERROR', exception=True)
-
-            self.__log_request(request=request)  # положим сообщение в контейнер, если нужно
-
         finally:
             try:
                 cursor.close()

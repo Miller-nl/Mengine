@@ -6,6 +6,7 @@ from .Message import Message
 class FailedMessages:
     '''
     Контейнер для хранения сообщений, не обработанных воркерами.
+        print_last() - показать последние сообщения
 
         maximum_list_length - максимальная длина списка
 
@@ -66,7 +67,12 @@ class FailedMessages:
         '''
         for mes in self.__failed_requests[-size:]:  # Понгали выписывать
             print(mes[0])
-            print(mes[1])
+            if isinstance(mes[1], Message):
+                export = mes[1].get_dict()
+            else:
+                export = mes[1]
+
+            print(export)
         return
 
     # ---------------------------------------------------------------------------------------------

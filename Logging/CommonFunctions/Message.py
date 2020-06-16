@@ -52,6 +52,9 @@ class Message:
             function_name - имя вызывающей функции
 
             time - время вызова
+
+        Экспорт
+            get_dict() - получить словарь с данными
     '''
 
     def __init__(self, message: str,
@@ -64,6 +67,7 @@ class Message:
                  logging_data: object = None,
                  exception: tuple or bool = True,
                  trace: list or bool = False,
+                 drop_in_trace: int = 2,
                  **kwargs):
         '''
 
@@ -98,9 +102,7 @@ class Message:
             следа внутри функции. Если задан exception_mistake, то trace игнорируется.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
-        :return: статус отправки сообщения: True - все успешно, False - кто-то упал, None - ушло только
-            в контенер с проваленными.
-
+        :param drop_in_trace: сколько скинуть объектов с конца следа?
         '''
 
         self.__message = message
@@ -124,6 +126,8 @@ class Message:
         # Данные
         self.__logging_data = logging_data
         self.__additional_data = kwargs
+
+        self.__drop_in_trace = drop_in_trace
 
     # ---------------------------------------------------------------------------------------------
     # Подготовка параметров -----------------------------------------------------------------------
@@ -154,7 +158,8 @@ class Message:
             if isinstance(trace, list):  # Если подан уже след
                 pass
             elif trace is True:  # Если след набо брать
-                trace = prepare_trace(trace=trace, drop_last=2)  # Сбросим себя и "to_log" из следа
+                # 3 - эта функция, и функции "вызова" сообщения кроме функции логирования
+                trace = prepare_trace(trace=trace, drop_last=3 + self.__drop_in_trace)
             else:  # Если False
                 trace = None
 

@@ -1,10 +1,22 @@
 import json
 import datetime
 import os
+import multiprocessing
+import threading
 
 from ..CommonFunctions.LoggingLevels import int_logging_level, logging_levels
 from ..CommonFunctions.ForFailedMessages import FailedMessages
 from ..CommonFunctions.Message import Message
+
+class no_mutex:
+    def acquire(self):
+        pass
+        return
+
+    def release(self):
+        pass
+        return
+
 
 class JsonLogger:
     '''
@@ -14,6 +26,9 @@ class JsonLogger:
 
 
     Свойства и методы:
+        mutex - мьютекс
+
+        multiprocess_access - разрешённость доступов из разных процессов
 
         default_logging_level - уровень логирования поумолчанию
 
@@ -33,7 +48,8 @@ class JsonLogger:
     def __init__(self,
                  journals_catalog: str, journal_file: str = None,
                  remember_failed_requests: int = 120,
-                 logging_level: str or int = 'DEBUG'):
+                 logging_level: str or int = 'DEBUG',
+                 multiprocess_access: bool or None = False):
         '''
 
         :param journals_catalog: директория для ведения журнала. По дефолту определяется через файл с настройками
@@ -41,6 +57,8 @@ class JsonLogger:
                 по времени и дате.
         :param remember_failed_requests: количество сообщений, которые будут заполнены в случае отказа воркера. 0 - все.
         :param logging_level: Уровень логирования в файл .jsonlines. Если задан "косячно", поставится "DEBUG"
+        :param multiprocess_access: разрешить ли использование в нескольких процессах?
+            True - mutex будет от multiprocessing, False - от threading, None - без мьютекса.
         '''
 
         self.__default_logging_level = int_logging_level(logging_level=logging_level,
@@ -52,6 +70,13 @@ class JsonLogger:
         # Создадим файл журнала если его нет
         self.__prepare_file(journals_catalog=journals_catalog, journal_file=journal_file)
 
+        self.__multiprocess_access = multiprocess_access
+        if multiprocess_access is True:
+            self.__mutex = multiprocessing.Lock()
+        elif multiprocess_access is False:
+            self.__mutex = threading.Lock()
+        else:  # Если это None
+            self.__mutex = no_mutex()
 
 
     def __prepare_file(self, journals_catalog: str, journal_file: str = None) -> bool or None:
@@ -91,6 +116,25 @@ class JsonLogger:
     # ---------------------------------------------------------------------------------------------
     # Общие property ------------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
+    @property
+    def mutex(self) -> object or no_mutex:
+        '''
+        Получение мьютекса объекта.
+        Если multiprocess_access True, то это мьютекс multiprocessing.synchronize.Lock, иначе - _thread.lock.
+
+        :return: мьютекс
+        '''
+        return self.__mutex
+
+    @property
+    def multiprocess_access(self) -> bool:
+        '''
+        Разрешён ли "многопроцессный доступ"?
+
+        :return:
+        '''
+        return self.__multiprocess_access
+
     @property
     def default_logging_level(self) -> int:
         '''
@@ -152,41 +196,55 @@ class JsonLogger:
             False - "данные" были срезаны из-за ошибок отправки, но само сообщение доставлено;
             None - сообщение не залогировано.
         '''
-        if not os.access(self.__journal_file, os.F_OK):  # Если файла нет
-            return None  # ошибка
-
+        self.mutex.acquire()
         try:
-            with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
-                if isinstance(message, dict):
-                    json.dump(message, write_file)
-                if isinstance(message, Message):
-                    json.dump(message.get_dict(trimmed=False), write_file)
-                elif isinstance(message, str):
-                    json.dump(json.loads(message), write_file)
+            if not os.access(self.__journal_file, os.F_OK):  # Если файла нет
+                return None  # ошибка
 
-                write_file.write('\n')
-                write_file.flush()
-            return True
-        except BaseException:  # При ошибке записи
-            self._FailedMessages.add_message(workers_names=self.__class__.__name__, message=message)
+            try:
+                with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
+                    if isinstance(message, dict):
+                        json.dump(message, write_file)
+                    if isinstance(message, Message):
+                        json.dump(message.get_dict(trimmed=False), write_file)
+                    elif isinstance(message, str):
+                        json.dump(json.loads(message), write_file)
+
+                    write_file.write('\n')
+                    write_file.flush()
+                return True
+            except BaseException:  # При ошибке записи
+                self._FailedMessages.add_message(workers_names=self.__class__.__name__, message=message)
+                self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                               message=Message(message='Ошибка записи полного сообщения.',
+                                                               logging_level=30,
+                                                               logging_data={'journal_file': self.__journal_file}
+                                                               )
+                                               )
+                if isinstance(message, Message):  # Если это контейнер
+                    try:
+                        with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
+                            json.dump(message.get_dict(trimmed=True), write_file)
+
+                        return False  # Вернём, что сообщение оптправлено с ошибкой
+                    except BaseException:
+                        self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
+                                                       message=Message(message='Ошибка записи укороченного сообщения.',
+                                                                       logging_level=30,
+                                                                       logging_data={
+                                                                           'journal_file': self.__journal_file}
+                                                                       )
+                                                       )
+                return None  # Если завален стандартный вывод и "укороченный" тоже
+
+        except BaseException:
             self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
-                                           message=Message(message='Ошибка записи полного сообщения.',
+                                           message=Message(message='Непредвиденная ошибка',
                                                            logging_level=30,
                                                            logging_data={'journal_file': self.__journal_file}
                                                            )
                                            )
-            if isinstance(message, Message):  # Если это контейнер
-                try:
-                    with open(self.journals[0], 'a') as write_file:  # Делаем экспорт
-                        json.dump(message.get_dict(trimmed=True), write_file)
+            return None  # ошибка
+        finally:
+            self.mutex.release()
 
-                    return False  # Вернём, что сообщение оптправлено с ошибкой
-                except BaseException:
-                    self._LoggerErrors.add_message(workers_names=self.__class__.__name__,
-                                                   message=Message(message='Ошибка записи укороченного сообщения.',
-                                                                   logging_level=30,
-                                                                   logging_data={'journal_file': self.__journal_file}
-                                                                   )
-                                                   )
-
-            return None  # Если завален стандартный вывод и "укороченный" тоже
