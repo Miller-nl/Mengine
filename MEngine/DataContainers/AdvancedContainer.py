@@ -51,7 +51,7 @@ class AdvancedContainer:
     '''
 
     def __init__(self,
-                 multiprocess_access: bool = False
+                 multiprocess_access: bool or None = False
                  ):
         '''
 
@@ -83,7 +83,7 @@ class AdvancedContainer:
         return self.__mutex
 
     @property
-    def multiprocess_access(self) -> bool:
+    def multiprocess_access(self) -> bool or None:
         '''
         Разрешён ли "многопроцессный доступ"?
 
@@ -92,13 +92,37 @@ class AdvancedContainer:
         return self.__multiprocess_access
 
     # ------------------------------------------------------------------------------------------------
-    # Логирование ------------------------------------------------------------------------------------
+    # Мультидоступ -----------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
+    @property
+    def lock(self):
+        '''
+        Блокировка мьютекса.
+
+        :return: ничего
+        '''
+        self.__mutex.acquire()
+        return
+
+    @property
+    def open(self):
+        '''
+        Разблокировка мьютекса.
+
+        :return:
+        '''
+        self.__mutex.release()
+        return
 
 
 
 
 
+
+
+
+
+def aaa():
 
     '''
 

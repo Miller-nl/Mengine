@@ -1,6 +1,6 @@
 
 from SystemCore.Proxy.Proxy import ProxyServer
-from ...Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from MEngine.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 foxtools_pages = ['http://foxtools.ru/Proxy',
                   'http://foxtools.ru/Proxy?page=2',

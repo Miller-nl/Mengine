@@ -7,8 +7,8 @@ import pymysql
 import psycopg2
 import sqlite3
 
-from ..Logging.CommonFunctions.ForFailedMessages import FailedMessages
-from ..Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from MEngine.Logging.CommonFunctions import FailedMessages
+from MEngine.Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
 
 # ------------------------------------------------------------------------------------------------
 # Общие штуки ------------------------------------------------------------------------------------

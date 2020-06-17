@@ -1,7 +1,7 @@
 
 
-from Logging.CommonLoggingClient import CommonLoggingClient
-from Logging.LoggingWorkers.LoggingToJSON import JsonLogger
+from MEngine.Logging.CommonLoggingClient import CommonLoggingClient
+from MEngine.Logging.LoggingWorkers.LoggingToJSON import JsonLogger
 
 JL = JsonLogger('D:\Projects\Tests')
 CLC = CommonLoggingClient('Тест 1')
