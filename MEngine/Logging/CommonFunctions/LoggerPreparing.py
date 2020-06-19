@@ -1,10 +1,10 @@
-from ..CommonLoggingClient import CommonLoggingClient
+from ..CommonLoggingClient import CommonLoggingClient, raise_exception
 
 # ------------------------------------------------------------------------------------------------
 # Получение логера и имени модуля ----------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
 def prepare_logger(class_name: str,
-                   logger: CommonLoggingClient = None, parent_name: str = None) -> tuple:
+                   logger: CommonLoggingClient or bool = False, parent_name: str = None) -> tuple:
     '''
     Функция определяет для класса логгер, "имя класса в текущей структуре" и функцию логирования.
         Это требуется для того, чтобы в поддерживаемом виде инсталировать логгер и сопутсвтующие функции у объектов.
@@ -23,7 +23,7 @@ def prepare_logger(class_name: str,
         (logger: CommonLoggingClient = None, parent_name: str = None)
 
     Описание:
-        :param logger: логер. Если логер не указан, будет добавлен собственный
+        :param logger: логер. True - создать новый, False и None - использовать raise.
         :param parent_name: имя родительского модуля.
 
     Запуск в init
@@ -130,13 +130,19 @@ def prepare_logger(class_name: str,
                                  trace=trace,
                                  **kwargs)
 
-    else:  # Если логер не подан
+    elif logger is True:  # Если логер не подан, но надо создать
         Logger = CommonLoggingClient(main_module_name=my_name)  # Создаём логер ЭТОГО ОБЪЕКТА
         # Если бы мы хотели логер родителя - мы бы дали логер родителя
 
         # возьмём функцию от логера
         logging_function = Logger.to_log
 
+    elif (logger is False) or (logger is None):
+        Logger = None
+        logging_function = raise_exception
+
+    else:
+        raise ValueError(f'logger value is incorrect: {logger}. Expected bool or None or CommonLoggingClient.')
 
     return Logger, logging_function, my_name
 

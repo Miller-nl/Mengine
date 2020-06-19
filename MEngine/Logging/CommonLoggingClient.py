@@ -41,12 +41,80 @@
 
 '''
 
-import datetime
+import sys
 
 from .CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
 from .CommonFunctions.FailedMessagesContainer import FailedMessages
 from .CommonFunctions.Message import Message
 
+# ------------------------------------------------------------------------------------------------
+# Получение логера и имени модуля ----------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------
+def raise_exception(message: str,
+                    logging_level: int or str = 'DEBUG',
+                    error_type: type or None = None,
+                    logging_data: object = None,
+                    **kwargs):
+    '''
+    Функция поднимает ошибку. Используется когда не задан логер.
+
+    :param message: сообщение для логирования
+    :param logging_level: тип сообщения в лог. Число или:
+                            DEBUG	Подробная информация, как правило, интересна только при диагностике проблем.
+
+                            INFO	Подтверждение того, что все работает, как ожидалось.
+
+                            WARNING	Указание на то, что произошло что-то неожиданное или указание на проблему в
+                                    ближайшем будущем (например, «недостаточно места на диске»).
+                                    Программное обеспечение все еще работает как ожидалось.
+
+                            ERROR	Из-за более серьезной проблемы программное обеспечение
+                                    не может выполнять какую-либо функцию.
+
+                            CRITICAL	Серьезная ошибка, указывающая на то,
+                                    что сама программа не может продолжить работу.
+
+                            int - Уровень логирования в стандартном значениии
+    :param error_type: тип ошибки, если требуется.
+    :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
+        обрабатывающихся в скриптах. Список/словарь - то, что можно перегнать в json
+    :param kwargs: прочие параметры.
+    :return: ничего
+    '''
+
+    # Установим уровень логирования
+    logging_level = int_logging_level(logging_level=logging_level,
+                                      default_level=10)
+
+    if logging_data is not None:
+        message = message + f' LoggingData:'
+
+        if isinstance(logging_data, dict):
+            for key in logging_data:
+                message += f' {key}: {logging_data[key]};'
+        else:
+            message += f' {logging_data}'
+
+    sys_exc = sys.exc_info()
+
+    if sys_exc == (None, None, None):  # Если ошибки нет
+        if isinstance(error_type, type):
+            raise error_type(message)
+
+        elif logging_level >= 40:
+            raise BaseException(message)
+
+    else:  # если исключение вызвано при обработке иного исключения
+        if isinstance(logging_level, int):
+            if logging_level < 40:
+                logging_level = 40
+
+        if isinstance(error_type, type):
+            raise error_type(message) from sys_exc[1]
+
+        elif logging_level >= 40:
+            raise BaseException(message) from sys_exc[1]
+    return
 
 # ------------------------------------------------------------------------------------------------
 # Клиент логирования -----------------------------------------------------------------------------
@@ -370,7 +438,7 @@ class CommonLoggingClient:
                submodule_name: str = None,
                logging_level: int or str = 'DEBUG',
                error_type: type or None = None,
-               raise_error: bool = False,
+               raise_error: bool = True,
                logging_data: object = None,
                exception: tuple or bool = True,
                trace: list or bool = False,
@@ -424,10 +492,11 @@ class CommonLoggingClient:
 
         result = self._send_dto(dto=DTO)
 
-        if raise_error:
-            if error_type is None:  # Если тип ошибки не задан
-                error_type = BaseException
-            raise error_type(message)
+        if raise_error or error_type is not None:
+            raise_exception(message=message,
+                            logging_level=logging_level,
+                            error_type=error_type,
+                            logging_data=logging_data.update(kwargs))
 
         return result
 
