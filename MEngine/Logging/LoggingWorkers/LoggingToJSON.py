@@ -5,7 +5,7 @@ import multiprocessing
 import threading
 
 from ..CommonFunctions.LoggingLevels import int_logging_level, logging_levels
-from ..CommonFunctions.ForFailedMessages import FailedMessages
+from ..CommonFunctions.FailedMessagesContainer import FailedMessages
 from ..CommonFunctions.Message import Message
 
 class no_mutex:

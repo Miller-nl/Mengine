@@ -59,6 +59,7 @@ class Message:
 
     def __init__(self, message: str,
                  logging_level: int,
+                 error_type: type or None = None,
                  main_module_name: str = None,
                  process_name: str = None,
                  session_key: str = None,
@@ -87,7 +88,7 @@ class Message:
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
 
-
+        :param error_type: тип ошибки, если требуется.
         :param main_module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
         :param process_name: имя процесса, в котором задействуется модуль (секция) (берётся у логера)
         :param session_key: ключ сессии или порядковый номер запуска, если требуется. (берётся у логера)
@@ -107,6 +108,8 @@ class Message:
 
         self.__message = message
         self.__logging_level = logging_level
+
+        self.__error_type = error_type
 
         # Установим след и исключение
         self.__exception, self.__trace = self.__prepare_exception_and_trace(exception=exception, trace=trace)
@@ -182,6 +185,14 @@ class Message:
     # ---------------------------------------------------------------------------------------------
     # Сообщение -----------------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
+    @property
+    def error_type(self) -> type or None:
+        '''
+        Отдаёт тип ошибки или None, если последний не указан.
+        :return:
+        '''
+        return self.__error_type
+
     @property
     def message(self) -> str:
         '''
