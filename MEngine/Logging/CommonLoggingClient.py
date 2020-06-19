@@ -46,7 +46,6 @@ import datetime
 from .CommonFunctions.LoggingLevels import logging_levels_int, int_logging_level
 from .CommonFunctions.FailedMessagesContainer import FailedMessages
 from .CommonFunctions.Message import Message
-from .CommonFunctions.RaiseMessage import raise_message
 
 
 # ------------------------------------------------------------------------------------------------
