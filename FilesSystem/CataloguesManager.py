@@ -1,14 +1,67 @@
 
 import os  # для работы с файлами
-import sys
 import configparser
 
-from ..Logging.CommonLoggingClient import CommonLoggingClient, prepare_logger
+from Logging import CommonLoggingClient, prepare_logger
 
 # Протянуть логер
 # Протянуть "извлечь схему из каталога"
 # Добавить статичные функции создания/удаления каталога и файлов в нём
 
+'''
++ получить файлы в каталоге с нужным расширением и т.п.
+
+@staticmethod
+    def concat_path(directory: str, file_name: str) -> str or None:
+        ''
+
+        :param directory: каталог
+        :param file_name: имя файла
+        :return: строка полного пути или None при критической ошибке
+        ''
+        try:
+            return os.path.join(directory, file_name)
+        except BaseException as miss:
+            raise ValueError('Path concatenation failed') from miss
+
+    @staticmethod
+    def extract_name(full_path: str) -> str:
+        ''
+        Функция извлекает имя файла из пути
+
+        :param full_path: путь
+        :return: имя файла
+        ''
+        return os.path.basename(full_path)
+
+    @staticmethod
+    def extract_extension(full_path: str) -> str:
+        ''
+        Функция извлекает расширение файла из пути
+
+        :param full_path: путь
+        :return: имя файла
+        ''
+        return os.path.splitext(full_path)[1]
+
+    @staticmethod
+    def shift_name(file_name: str,
+                   number: int = 0) -> str:
+        ''
+        Функция модификации/уникализации имени файла. Нужна для единообразия форматирования
+
+        :param file_name: исходное, не модифицированное имя файла.
+        :param number: номер сдвига (на случай, если сдвиг надо делать более одного раза, т.к. варианты, соответствующие
+            первым сдвигам, уже заняты).
+        :return:
+        ''
+        name = file_name[:file_name.rfind('.')]
+        expansion = file_name[file_name.rfind('.') + 1:]
+        export_name = f'{name}({number}).{expansion}'
+
+        return export_name
+
+'''
 
 class CatalogsManager:
     '''
