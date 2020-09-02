@@ -1,12 +1,10 @@
 from .Common import CommonMethods, FileIterator
-from MEngine.Exceptions.ExceptionTypes import ProcessingError, ValidationError
-
-import json
+from Exceptions.ExceptionTypes import ProcessingError, ValidationError
 
 
-class JSONL(CommonMethods):
+class TXT(CommonMethods):
     '''
-    Класс для считывания и сохранения jsonlines объектов.
+    Класс для считывания и сохранения txt объектов.
 
     Методы и свойства:
         Имена и пути
@@ -42,10 +40,8 @@ class JSONL(CommonMethods):
 
     def __init__(self, save_loaded: bool = False):
         '''
-
         :param save_loaded: сохоанять ли считанные файлы?
         '''
-
         # Выполним стандартный init
         CommonMethods.__init__(self, save_loaded=save_loaded)
 
@@ -55,7 +51,7 @@ class JSONL(CommonMethods):
     def read(self, full_path: str, save_loaded: bool = None,
              encoding: str = 'utf-8') -> object:
         '''
-        Функция считывания jsonl файла
+        Функция считывания txt файла
 
         :param full_path: полный путь к файлу
         :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
@@ -63,7 +59,7 @@ class JSONL(CommonMethods):
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :return: считанный файл в виде JSON объекта
         '''
-        if not full_path.endswith('.jsonl'):
+        if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
         if not self.check_access(path=full_path):
@@ -75,9 +71,7 @@ class JSONL(CommonMethods):
 
         # читаем
         with open(full_path, mode='r', encoding=encoding) as file:
-            result = []
-            for data_string in file:
-                result.append(json.loads(data_string))
+            result = file.read()
 
         if (save_loaded is None and self.save_loaded) or save_loaded is True:
             self._ad_loaded(full_path=full_path,
@@ -87,21 +81,18 @@ class JSONL(CommonMethods):
 
     def read_by_lines(self, full_path: str,
                       encoding: str = 'utf-8',
-                      start: int = 0, stop: int = 0) -> FileIterator:
+                      start: int = 0, stop: int = None) -> FileIterator:
         '''
         Функция отдаёт иттератор для чтения по строкам.
 
         :param full_path: полный путь к файлу
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :param start: первая строка
-        :param stop: последняя строка
+        :param stop: последняя строка. None - считать все
         :return: итератор по строкам FileIterator
         '''
-        if not full_path.endswith('.jsonl'):
+        if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
-
-        if start >= stop:
-            raise ValueError('Start >= Stop')
 
         if not self.check_access(path=full_path):
             raise ProcessingError('No access to file')
@@ -111,16 +102,15 @@ class JSONL(CommonMethods):
             encoding = self.get_encoding(full_path=full_path)
 
         return FileIterator(full_path=full_path, encoding=encoding,
-                            start=start, stop=stop,
-                            post_process_function=json.loads)
+                            start=start, stop=stop)
 
     # ------------------------------------------------------------------------------------------------
     # Запись -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     def write(self, file_data: object, full_path: str, shift_name: bool or None = True,
-              encoding: str = 'utf-8') -> bool or str:
+              encoding: str = 'utf-8') -> True or str:
         '''
-        Фнукия записывает данные в файл jsonl
+        Фнукия записывает данные в файл txt
 
         :param file_data: данные для экспорта в файл
         :param full_path: полное имя файла
@@ -131,7 +121,7 @@ class JSONL(CommonMethods):
             False - отказ от экспорта
             str - успешно экспортнуто, имя изменено
         '''
-        if not full_path.endswith('.jsonl'):
+        if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
         name_shifted = False
@@ -145,8 +135,7 @@ class JSONL(CommonMethods):
         # пишем
         try:
             with open(full_path, mode='w', encoding=encoding) as file:
-                json.dump(file_data, file)
-                file.write('\n')
+                file.write(file_data)
                 file.flush()
 
         except BaseException as miss:
@@ -157,17 +146,19 @@ class JSONL(CommonMethods):
         else:
             return True
 
-    def write_line(self, file_data: object, full_path: str,
-                   encoding: str = 'utf-8'):
+    def write_at_the_end(self, file_data: object, full_path: str,
+                         encoding: str = 'utf-8',
+                         new_string: bool = False):
         '''
-        Фнукия записывает данные в файл
+        Фнукия дозаписывает данные в файл. Если файл отсутствовал, он будет создан.
 
         :param file_data: данные для экспорта в файл
         :param full_path: полное имя файла
         :param encoding: кодировка
+        :param new_string: писать с новой строки
         :return:
         '''
-        if not full_path.endswith('.jsonl'):
+        if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
         if not self.check_access(path=full_path):
@@ -176,8 +167,9 @@ class JSONL(CommonMethods):
         # пишем
         try:
             with open(full_path, mode='a', encoding=encoding) as file:  # Делаем экспорт
-                json.dump(file_data, file)
-                file.write('\n')
+                if new_string:
+                    file.write('\n')
+                file.write(file_data)
                 file.flush()
 
         except BaseException as miss:

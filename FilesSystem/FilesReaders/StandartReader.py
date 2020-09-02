@@ -1,25 +1,19 @@
-from .Common import CommonMethods, FileIterator
-from MEngine.Exceptions.ExceptionTypes import ProcessingError, ValidationError
+from Exceptions.ExceptionTypes import ProcessingError
+from .Common import CommonMethods
 
-
-class TXT(CommonMethods):
+class StandartReader(CommonMethods):
     '''
-    Класс для считывания и сохранения txt объектов.
+    Класс, реализующий каркас для объектов чтения/записи.
 
     Методы и свойства:
-        Имена и пути
-            concat_path() - соединить каталог и имя файла
 
-            extract_name() - выделить имя файла из пути
+        concat_path() - соединить каталог и имя файла
 
-            extract_extension() - выделить расширение файла из пути
+        extract_name() - выделить имя файла из пути
 
-            shift_name() - функция модификации имени файла, если оно не является уникальным.
+        extract_extension() - выделить расширение файла из пути
 
-        Проверки
-            check_access() - проверка доступа
-
-            get_encoding() - получить кодировку файла
+        shift_name() - функция модификации имени файла, если оно не является уникальным.
 
         Настройки считывания
             save_loaded - сохранять ли считанные файлы?
@@ -28,14 +22,11 @@ class TXT(CommonMethods):
 
             _reset_loaded - обновить словарь сохранённых файлов
 
-        Чтение - запись
-            read() - чтение
+        Проверки
+            check_access() - проверка доступа
 
-            read_by_lines() - возвращает итерратор для чтения по строкам
+            get_encoding() - получить кодировку файла
 
-            write() - запись
-
-            write_line() - добавить строку
     '''
 
     def __init__(self, save_loaded: bool = False):
@@ -51,19 +42,16 @@ class TXT(CommonMethods):
     # Чтение -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     def read(self, full_path: str, save_loaded: bool = None,
-             encoding: str = 'utf-8') -> object:
+             encoding: str = None) -> object:
         '''
-        Функция считывания txt файла
+        Функция считывания файла
 
         :param full_path: полный путь к файлу
         :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
             настройку (save_loaded)
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
-        :return: считанный файл в виде JSON объекта
+        :return: контент файла
         '''
-        if not full_path.endswith('.txt'):
-            raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
-
         if not self.check_access(path=full_path):
             raise ProcessingError('No access to file')
 
@@ -81,41 +69,13 @@ class TXT(CommonMethods):
 
         return result
 
-    def read_by_lines(self, full_path: str,
-                      encoding: str = 'utf-8',
-                      start: int = 0, stop: int = 0) -> FileIterator:
-        '''
-        Функция отдаёт иттератор для чтения по строкам.
-
-        :param full_path: полный путь к файлу
-        :param encoding: строка, явно указывающая кодировку или None для её автоопределения
-        :param start: первая строка
-        :param stop: последняя строка
-        :return: итератор по строкам FileIterator
-        '''
-        if not full_path.endswith('.txt'):
-            raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
-
-        if start >= stop:
-            raise ValueError('Start >= Stop')
-
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
-
-        # определим кодировку файла
-        if encoding is None:
-            encoding = self.get_encoding(full_path=full_path)
-
-        return FileIterator(full_path=full_path, encoding=encoding,
-                            start=start, stop=stop)
-
     # ------------------------------------------------------------------------------------------------
     # Запись -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     def write(self, file_data: object, full_path: str, shift_name: bool or None = True,
-              encoding: str = 'utf-8') -> True or str:
+              encoding: str = 'utf-8') -> bool or str:
         '''
-        Фнукия записывает данные в файл txt
+        Фнукия записывает данные в файл
 
         :param file_data: данные для экспорта в файл
         :param full_path: полное имя файла
@@ -126,9 +86,6 @@ class TXT(CommonMethods):
             False - отказ от экспорта
             str - успешно экспортнуто, имя изменено
         '''
-        if not full_path.endswith('.txt'):
-            raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
-
         name_shifted = False
         if self.check_access(path=full_path):  # если есть файл и мы не дописываем в конец
             if shift_name is None:
@@ -150,30 +107,3 @@ class TXT(CommonMethods):
             return full_path
         else:
             return True
-
-    def add_to_file(self, file_data: object, full_path: str,
-                    encoding: str = 'utf-8'):
-        '''
-        Фнукия дозаписывает данные в файл
-
-        :param file_data: данные для экспорта в файл
-        :param full_path: полное имя файла
-        :param encoding: кодировка
-        :return:
-        '''
-        if not full_path.endswith('.txt'):
-            raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
-
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
-
-        # пишем
-        try:
-            with open(full_path, mode='a', encoding=encoding) as file:  # Делаем экспорт
-                file.write(file_data)
-                file.flush()
-
-        except BaseException as miss:
-            raise ProcessingError('Error writing to file') from miss
-
-        return

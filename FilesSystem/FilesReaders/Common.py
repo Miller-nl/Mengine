@@ -1,6 +1,6 @@
 import os
 from chardet.universaldetector import UniversalDetector
-from MEngine.Exceptions.ExceptionTypes import ProcessingError, ValidationError
+from Exceptions.ExceptionTypes import ProcessingError, ValidationError
 
 def count_lines(full_path: str) -> int:
     '''
@@ -19,6 +19,7 @@ def count_lines(full_path: str) -> int:
 class FileIterator:
     '''
     Иттератор для чтения файла по строкам.
+    Лучше использовать "next", чтобы файл закрылся после работы.
     '''
 
     def __iter__(self, ):
