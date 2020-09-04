@@ -1,67 +1,11 @@
-
 import os  # для работы с файлами
 import configparser
 
-from Logging import CommonLoggingClient, prepare_logger
+from Exceptions.ExceptionTypes import ProcessingError, ValidationError
 
 # Протянуть логер
 # Протянуть "извлечь схему из каталога"
 # Добавить статичные функции создания/удаления каталога и файлов в нём
-
-'''
-+ получить файлы в каталоге с нужным расширением и т.п.
-
-@staticmethod
-    def concat_path(directory: str, file_name: str) -> str or None:
-        ''
-
-        :param directory: каталог
-        :param file_name: имя файла
-        :return: строка полного пути или None при критической ошибке
-        ''
-        try:
-            return os.path.join(directory, file_name)
-        except BaseException as miss:
-            raise ValueError('Path concatenation failed') from miss
-
-    @staticmethod
-    def extract_name(full_path: str) -> str:
-        ''
-        Функция извлекает имя файла из пути
-
-        :param full_path: путь
-        :return: имя файла
-        ''
-        return os.path.basename(full_path)
-
-    @staticmethod
-    def extract_extension(full_path: str) -> str:
-        ''
-        Функция извлекает расширение файла из пути
-
-        :param full_path: путь
-        :return: имя файла
-        ''
-        return os.path.splitext(full_path)[1]
-
-    @staticmethod
-    def shift_name(file_name: str,
-                   number: int = 0) -> str:
-        ''
-        Функция модификации/уникализации имени файла. Нужна для единообразия форматирования
-
-        :param file_name: исходное, не модифицированное имя файла.
-        :param number: номер сдвига (на случай, если сдвиг надо делать более одного раза, т.к. варианты, соответствующие
-            первым сдвигам, уже заняты).
-        :return:
-        ''
-        name = file_name[:file_name.rfind('.')]
-        expansion = file_name[file_name.rfind('.') + 1:]
-        export_name = f'{name}({number}).{expansion}'
-
-        return export_name
-
-'''
 
 class CatalogsManager:
     '''
@@ -84,19 +28,16 @@ class CatalogsManager:
         универсальности.
 
     Методы и свойства
-        Логирование
-            _Logger - логгер
-
-            _sub_module_name - "под имя", использующееся при логировании
-
-            _to_log - функция логирования
-
         Работа с файлами
             main_path - "основной" каталог (в котором развёрнута структура папок).
 
             get_files_list() - получение списка файлов в секции или опции
 
             get_sub_catalogs_list() - получение списка подкаталогов в секции или опции
+
+            move_file() - перенос файла
+
+            check_access() - проверка доступа
 
         Секции
             sections - список названий секций
@@ -120,23 +61,25 @@ class CatalogsManager:
 
             del_option() - удаление опции
 
+        Имена и пути
+            concat_path() - соединить каталог и имя файла
+
+            extract_name() - выделить имя файла из пути
+
+            extract_extension() - выделить расширение файла из пути
+
+            shift_name() - функция модификации имени файла, если оно не является уникальным.
+
     '''
 
     __section_path_name = 'section_path'  # Название опции с основным каталогом секции
 
-    def __init__(self, main_path: str,
-                 logger: CommonLoggingClient = None, parent_name: str = None):
+    def __init__(self, main_path: str):
         '''
 
         :param main_path: основной каталог с данными. В нём будет создан подкаталог для процесса "process_name"
             процесса, в подкаталоге которого процесс будет хранить свои данные.
-        :param logger: логер. Если логер не указан, будет добавлен собственный
-        :param parent_name: имя родительского модуля.
         '''
-
-        self.__Logger, self.__to_log, self.__my_name = prepare_logger(class_name=self.__class__.__name__,
-                                                                      logger=logger, parent_name=parent_name)
-
         self.__main_path = os.path.abspath(main_path)  # Форматнём путь
 
         # Объект для хранения секций (основных подкаталогов) и опций (подкаталогов секций)
@@ -155,36 +98,6 @@ class CatalogsManager:
         return
 
     # ------------------------------------------------------------------------------------------------
-    # Логирование ------------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    @property
-    def _Logger(self) -> CommonLoggingClient:
-        '''
-        Логер, использующийся в объекте
-
-        :return: логер
-        '''
-        return self.__Logger
-
-    @property
-    def _to_log(self) -> object:
-        '''
-        Отдаёт функцию логирования, которая используется в работе
-
-        :return: функция
-        '''
-        return self.__to_log
-
-    @property
-    def _my_name(self) -> str:
-        '''
-        Отдаёт строку с полным структурным навзванием модуля
-
-        :return: строку
-        '''
-        return self.__my_name
-
-    # ------------------------------------------------------------------------------------------------
     # Работа с каталогами ----------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     @property
@@ -196,12 +109,12 @@ class CatalogsManager:
         '''
         return self.__main_path
 
-    def __drop_directory(self, directory: str) -> bool or None:
+    def __drop_directory(self, directory: str):
         '''
         Функция иттеративно удаляет все файлы в указанной директории, проверяет все её папки, выполняя удаление внутри
             них, после чего ударяет подкаталоги, а в завершении удаляет и саму директорию directory
         :param directory: директория, подлежащая удалению
-        :return: статус наличия ошибок. True - нет ошибок, False - каталога нет; None - при удалении встречены ошибки.
+        :return:
         '''
         if not os.access(path=directory, mode=os.F_OK):  # проверим каталог
             return False  # вернём ошибку
@@ -213,35 +126,19 @@ class CatalogsManager:
             if os.path.isfile(file_name):  # Если это файл
                 try:
                     os.remove(file_name)  # Удаляем его
-                except BaseException:
-                    self.__to_log(message='Ошибка удаления файла.',
-                                  logging_data={'file_name': file_name},
-                                  logging_level='ERROR')
-
-                    errors += 1  # Крутанём счётчик ошибок
+                except BaseException as miss:
+                    raise ProcessingError('Directory deletion failed. File deletion error.') from miss
 
             else:  # Если это каталог
                 self.__drop_directory(directory=file_name)  # Запросим его зачистку
-                # Тут счётчик не надо - если были ошибки в подкаталогах, то try/except завалится
 
         # Теперь попробуем дропнуть саму директорию
         try:
             os.rmdir(directory)  # Пробуем удалить директорию
-            if errors:  # Если были ошибки
-                return None
-            else:  # Если количество ошибок при удалении файлов - 0
-                return True  # Вернём статус успешного овыполнения
+        except OSError as miss:  # исключая ошибку
+            raise ProcessingError('Directory deletion failed.') from miss
 
-        except OSError:  # исключая ошибку
-            self.__to_log(message='Ошибка удаление директории.',
-                          logging_data={'directory': directory},
-                          logging_level='ERROR')
-            return None
-
-
-        # Получим список подкаталогов
-
-        # os.rmdir(path, *, dir_fd=None) - удаляет пустую директорию.
+        return
 
     # ------------------------------------------------------------------------------------------------
     # Работа с секциями ------------------------------------------------------------------------------
@@ -255,7 +152,7 @@ class CatalogsManager:
         '''
         return self.__config.sections()
 
-    def get_section_path(self, section_name: str or int) -> str or None:
+    def get_section_path(self, section_name: str) -> str:
         '''
         Функция отдаёт каталог сеции.
 
@@ -264,12 +161,12 @@ class CatalogsManager:
         '''
         # Проверим наличие секции
         if not self.check_section(section_name=section_name):
-            return None
+            raise configparser.NoSectionError(f'"{section_name}". Getting the path failed.')
         else:  # Если секция есть
             return os.path.join(self.main_path, self.__config.get(section=section_name,
                                                                   option=self.__section_path_name))
 
-    def check_section(self, section_name: str or int) -> bool:
+    def check_section(self, section_name: str) -> bool:
         '''
         Функция проверяет, есть ли соответствующая секция
 
@@ -278,18 +175,18 @@ class CatalogsManager:
         '''
         return self.__config.has_section(section_name)
 
-    def add_section(self, section_name: str or int,
-                    section_folder: str = None) -> bool or None:
+    def add_section(self, section_name: str,
+                    section_folder: str = None) -> bool:
         '''
         Функция добавляет секцию в набор каталогов. Если секция есть, её "переименовывание" запрещено во избежание
         ошибок. Если добавление каталога провалено, секция не добавится.
 
         :param section_name: имя секции
         :param section_folder: папка секции. Если не задан - выбирается имя секции по дефолту.
-        :return: True - секции не было, добавлена False - секция или папка есть, добавление отменено; None - ошибка.
+        :return: True - секции не было, добавлена; False - секция уже есть, добавление отменено.
         '''
         if section_folder is None:  # Если папка не задана
-            section_folder = str(section_name)  # Берём имя за каталог
+            section_folder = section_name  # Берём имя за каталог
 
         if self.check_section(section_name=section_name):  # Если секция есть
             return False  # Вернём статус
@@ -303,36 +200,32 @@ class CatalogsManager:
                 self.__config.add_section(section_name)  # Создаём секцию в настройках
                 self.__config.set(section=section_name, option=self.__section_path_name,
                                   value=section_folder)  # Ставим каталог
-                return True
-            except BaseException:  # если был косяк
-                self.__to_log(message='Добавление секции в набор каталогов провалено.',
-                              logging_data={'section_name': section_name,
-                                            'section_folder': section_folder},
-                              logging_level='ERROR')
-                return None
 
-    def del_section(self, section_name: str or int,
-                    clear_disc: bool = False) -> bool or None:
+            except BaseException as miss:  # если был косяк
+                raise ProcessingError((f'Section adding error.\nsection_name: {section_name}' +
+                                       f'\nsection_folder: {section_folder}')) from miss
+        return True
+
+    def del_section(self, section_name: str,
+                    clear_disc: bool = False) -> bool:
         '''
         Функция удаляет секцию.
 
         :param section_name: имя секции
         :param clear_disc: очистить ли жёсткий диск?
-        :return: True - если секция была и она удалена, данные с диска зачищены; False - секции не было;
-            None - ошибка удаления секции или зачистки данных, если последняя запрошена.
+        :return: True - если секция была и она удалена, данные с диска зачищены; False - секции не было.
         '''
 
         if not self.__config.has_section(section_name):  # Если секции нет
             return False  # Вернём статус
+
         elif clear_disc:  # Если секция есть и диск чистим
             section_path = self.get_section_path(section_name=section_name)
-            result = self.__drop_directory(directory=section_path)  # Делаем удаление
+            self.__drop_directory(directory=section_path)  # Делаем удаление
+            self.__config.remove_section(section_name)  # Зачистим секцию
 
-            if result is None:  # если были ошибки
-                return None
-            else:  # если каталога секции не было или он удалён успешно
-                self.__config.remove_section(section_name)  # Зачистим секцию
-                return True
+            return True
+
         else:  # Если секция ест, но диск не чистим
             self.__config.remove_section(section_name)  # Зачистим секцию
             return True
@@ -340,33 +233,35 @@ class CatalogsManager:
     # ------------------------------------------------------------------------------------------------
     # Работа с опциями -------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    def get_options(self, section_name: str or int) -> list or None:
+    def get_options(self, section_name: str) -> list:
         '''
         Функция отдаёт список опций секции. Если опций нет, то список будет пуст.
         Если указана несуществующия секция - функция сообщит об ошибке.
 
         :param section_name: имя секции, которая нас интересует
-        :return: список с опциями (может быть пуст) или None.
+        :return: список с опциями (может быть пуст).
         '''
         try:
-            return self.__config.options(section_name)
-        except configparser.NoSectionError:
-            return None
+            options_list = self.__config.options(section_name)
+            options_list.pop(0)  # дропаем "__section_path_name" - это "нулевая опция"
+            return options_list
+        except BaseException as miss:
+            raise ProcessingError(f'Retrieving a list of options for section "{section_name}" failed.') from miss
 
-    def check_option(self, section_name: str or int, option_name: str or int) -> bool or None:
+    def check_option(self, section_name: str, option_name: str) -> bool:
         '''
         Проверка наличия опции.
 
         :param section_name: имя секции
         :param option_name: имя опции
-        :return: True - секция есть, опция есть; False - секция есть, опции нет; None - нет секции.
+        :return: True - секция есть, опция есть; False - секция есть, опции нет;.
         '''
         if not self.check_section(section_name=section_name):  # если нет секции
-            return None
+            raise configparser.NoSectionError(f'"{section_name}". Check failed.')
         else:  # Если она есть
             return self.__config.has_option(section=section_name, option=option_name)  # отдаём статус опции
 
-    def get_option_path(self, section_name: str or int, option_name: str or int) -> str or None:
+    def get_option_path(self, section_name: str, option_name: str) -> str:
         '''
         Функция отдаёт каталог опции.
 
@@ -374,30 +269,30 @@ class CatalogsManager:
         :param option_name: имя опции
         :return: строка с полным путём каталога или None, если нет секции или опции.
         '''
-
-        if self.check_option(section_name=section_name, option_name=option_name) is not True:  # Проверим опцию
+        check_result = self.check_option(section_name=section_name, option_name=option_name)
+        if check_result is True:  # Проверим опцию
             path = os.path.join(self.get_section_path(section_name=section_name),
                                 self.__config.get(section=section_name, option=option_name))
             return path
-        else:  # Если нет секции или опции
-            return None
+        else:  # Если он False
+            raise configparser.NoOptionError(f'{option_name}',
+                                             section=section_name)
 
-    def add_option(self, section_name: str or int, option_name: str or int,
-                   option_folder: str = None) -> bool or None:
+    def add_option(self, section_name: str, option_name: str,
+                   option_folder: str = None):
         '''
         Функция добавляет опцию в соответствующую секцию
 
         :param section_name: имя секции
         :param option_name: имя опции
         :param option_folder: подкаталог опции. Если не задан, берётся option_name
-        :return: статус выполнения: True - опции не было, создана; False - опция была, действий не выполнено;
-            None - ошибка (в том числе - "отсутствует секция")
+        :return:
         '''
         if option_folder is None:  # Если нет подкаталога
-            option_folder = str(option_name)
+            option_folder = option_name
 
-        check_option = self.check_option(section_name=section_name, option_name=option_name)  # Проверим наличие секции
-        if check_option is False:  # Если опция есть, а секции нет
+        check_option = self.check_option(section_name=section_name, option_name=option_name)  # Проверим наличие опции
+        if check_option is False:  # Если секция есть, а опции нет
 
             try:
                 option_path = os.path.join(self.main_path, self.get_section_path(section_name=section_name),
@@ -405,110 +300,199 @@ class CatalogsManager:
                 if not os.access(option_path, mode=os.F_OK):  # Создадим каталог опции, если его нет
                     os.makedirs(option_path)
                 self.__config.set(section=section_name, option=option_name, value=option_folder)  # Создадим опцию
-                return True  # Закончим, вернув статус успешности
 
-            except BaseException:  # если был косяк
-                self.__to_log(message='Добавление секции в набор каталогов провалено.',
-                              logging_data={'section_name': section_name,
-                                            'main_path': self.main_path,
-                                            'section_path': self.get_section_path(section_name=section_name),
-                                            'option_folder': option_folder,
-                                            },
-                              logging_level='ERROR')
-                return None
+            except BaseException as miss:  # если был косяк
+                raise ProcessingError('Failed to add "option" to directory set.\n' +
+                                       f'section_name: {section_name}\nmain_path: {self.main_path}\n' +
+                                       f'section_path: {self.get_section_path(section_name=section_name)}\n' +
+                                      'option_folder: {option_folder}') from miss
+        return
 
-        elif check_option is True:  # Если опция есть
-            return False  # вернём статус
-
-        else:  # если там None (нет секции)
-            return None  # вернём статус
-
-    def del_option(self, section_name: str or int, option_name: str or int,
-                   clear_disc: bool = False) -> bool or None:
+    def del_option(self, section_name: str, option_name: str,
+                   clear_disc: bool = False):
         '''
         Удаление опции, включая все файлы в ней!
 
         :param section_name: имя секции
         :param option_name: имя опции
         :param clear_disc: очистить ли жёсткий диск?
-        :return: True - опция есть, удалена; False - секция есть, опции нет, не удалена опция;
-            None - нет секции, не удалена опция.
+        :return:
         '''
         check_option = self.check_option(section_name=section_name, option_name=option_name)  # Проверим наличие секции
         if check_option is False:  # Если опция есть, а секции нет
-            return False  # Закончим
+            raise configparser.NoOptionError(f'{option_name}',
+                                             section=section_name)
 
         elif check_option is True:  # Если опция есть
             if clear_disc:  # Если диск зачищать нужно
                 # Делаем удаление
-                result = self.__drop_directory(directory=self.get_option_path(section_name=section_name,
-                                                                              option_name=option_name))
-                if result is None:  # если были ошибки
-                    return None
-                else:  # если каталога секции не было или он удалён успешно
-                    self.__config.remove_option(section=section_name, option=option_name)
-                    return True
+                self.__drop_directory(directory=self.get_option_path(section_name=section_name,
+                                                                     option_name=option_name))
+                # если каталога секции не было или он удалён успешно
+                self.__config.remove_option(section=section_name, option=option_name)
 
             else:  # Если не нужно чистить диск
                 self.__config.remove_option(section=section_name, option=option_name)
-                return True  # вернём статус
 
-        else:  # если там None (нет секции)
-            return None  # вернём статус
+        return
 
     # ------------------------------------------------------------------------------------------------
-    # Получить список файлов -------------------------------------------------------------------------
+    # Имена и пути -----------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
+    @staticmethod
+    def concat_path(directory: str, file_name: str) -> str or None:
+        '''
+        Соединяет путь и имя файла
+
+        :param directory: каталог
+        :param file_name: имя файла
+        :return: строка полного пути или None при критической ошибке
+        '''
+        try:
+            return os.path.join(directory, file_name)
+        except BaseException as miss:
+            raise ValueError('Path concatenation failed') from miss
+
+    @staticmethod
+    def extract_name(full_path: str) -> str:
+        '''
+        Функция извлекает имя файла из пути
+
+        :param full_path: путь
+        :return: имя файла
+        '''
+        return os.path.basename(full_path)
+
+    @staticmethod
+    def extract_extension(full_path: str) -> str:
+        '''
+        Функция извлекает расширение файла из пути
+
+        :param full_path: путь
+        :return: имя файла
+        '''
+        return os.path.splitext(full_path)[1]
+
+    @staticmethod
+    def shift_name(file_name: str,
+                   number: int = 0) -> str:
+        '''
+        Функция модификации/уникализации имени файла. Нужна для единообразия форматирования
+
+        :param file_name: исходное, не модифицированное имя файла.
+        :param number: номер сдвига (на случай, если сдвиг надо делать более одного раза, т.к. варианты, соответствующие
+            первым сдвигам, уже заняты).
+        :return:
+        '''
+        name = file_name[:file_name.rfind('.')]
+        expansion = file_name[file_name.rfind('.') + 1:]
+        export_name = f'{name}({number}).{expansion}'
+
+        return export_name
+
+    # ------------------------------------------------------------------------------------------------
+    # Работа с файлами -------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
+    @staticmethod
+    def check_access(path: str) -> bool:
+        '''
+        Функция проверяет наличие файла или каталога на указанном пути
+
+        :param path: полный путь каталога или файла
+        :return: статус наличия
+        '''
+        return os.access(path, mode=os.F_OK)
+
+    def move_file(self,
+                  file_name: str,
+                  location: str,
+                  new_location: str,
+                  create_new_location: bool = False):
+        '''
+        Функция переносит файл из старого расположения в новое.
+
+        :param file_name: имя файла
+        :param location: старое расположение
+        :param new_location: новое
+        :param create_new_location: создать ли новый каталог, если его нет?
+        :return:
+        '''
+        try:
+            old_name = self.concat_path(directory=location, file_name=file_name)
+            if self.check_access(self.concat_path(directory=location, file_name=file_name)):
+                if not self.check_access(new_location):
+                    if create_new_location:
+                        os.makedirs(new_location, mode=0o777, exist_ok=False)
+                    else:
+                        raise ValueError(f'File moving error. Folder "{new_location}" does not exist.')
+                if self.check_access(self.concat_path(directory=new_location, file_name=file_name)):
+                    raise ValueError(f'File moving error.' +
+                                     f'A file with name "{file_name}" already exists in the directory "{new_location}".')
+
+                # делаем перенос
+                os.rename(old_name,
+                          self.concat_path(directory=new_location, file_name=file_name))
+
+            else:
+                raise ValueError(f'File moving error. No access to file "{old_name}".')
+
+        except BaseException as miss:
+            raise ProcessingError(f'File moving from "{location}" to "{new_location}" failed.') from miss
+        return
+
     def get_files_list(self, section_name: str or int,
                        option_name: str or int = None,
-                       full_path: bool = True) -> str or None:
+                       extension: str = None,
+                       full_path: bool = True) -> list:
         '''
         Функция отдаёт список имён файлов сеции, если не задана опция. Если опция указана, отдаются файлы из опции.
 
         :param section_name: имя секции
         :param option_name: имя опции. Если не задано, берутся
+        :param extension: расширение файлов. Если не задано - берутся все.
         :param full_path: регулирует, в каком виде имена попадут в экспорт: полный путь (true)
             или только имя файла (false)
-        :return: список имён файлов; None - если нет секции/опции/не существует каталог.
+        :return: список имён файлов.
         '''
+
         if option_name is None:
             path = self.get_section_path(section_name=section_name)
         else:
             path = self.get_option_path(section_name=section_name, option_name=option_name)
-
-        if path is None:  # если у нас ошибка получения каталога
-            return None
 
         export_list = []  # экспортынй лист
         for element in os.listdir(path=path):
             element_path = os.path.join(path, element)  # Делаем абсолютный путь
             if os.path.isfile(element_path):  # Если это файл
+
+                if extension is not None:  # если учитываем расширение
+                    if self.extract_extension(element_path) != extension:
+                        continue
+
                 if full_path:  # если берём полный путь
                     export_list.append(element_path)
                 else: # или берём только имя
                     export_list.append(element)
+
         return export_list  # отдаём результат
 
-    def get_sub_catalogs_list(self, section_name: str or int,
-                              option_name: str or int = None,
-                              full_path: bool = True) -> str or None:
+    def get_sub_catalogs_list(self, section_name: str,
+                              option_name: str = None,
+                              full_path: bool = True) -> list:
         '''
         Функция отдаёт список имён подкаталогов сеции, если не задана опция. Если опция указана, отдаются подкаталоги
             из опции.
 
         :param section_name: имя секции
-        :param option_name: имя опции. Если не задано, берутся
+        :param option_name: имя опции. Если не задана, берётся сама секция.
         :param full_path: регулирует, в каком виде имена попадут в экспорт: полный путь (true)
             или только имя файла (false)
-        :return: список имён подкаталогов; None - если нет секции/опции/не существует каталог.
+        :return: список имён подкаталогов.
         '''
         if option_name is None:
             path = self.get_section_path(section_name=section_name)
         else:
             path = self.get_option_path(section_name=section_name, option_name=option_name)
-
-        if path is None:  # если у нас ошибка получения каталога
-            return None
 
         export_list = []  # экспортынй лист
         for element in os.listdir(path=path):
@@ -518,4 +502,5 @@ class CatalogsManager:
                     export_list.append(element_path)
                 else:  # или берём только имя
                     export_list.append(element)
+
         return export_list  # отдаём результат
