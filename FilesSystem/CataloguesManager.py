@@ -74,12 +74,16 @@ class CatalogsManager:
 
     __section_path_name = 'section_path'  # Название опции с основным каталогом секции
 
-    def __init__(self, main_path: str):
+    def __init__(self, main_path: str = True):
         '''
 
         :param main_path: основной каталог с данными. В нём будет создан подкаталог для процесса "process_name"
             процесса, в подкаталоге которого процесс будет хранить свои данные.
+            Дефолтно - каталог из которого запустили.
         '''
+        if main_path is True:
+            main_path = os.getcwd()
+
         self.__main_path = os.path.abspath(main_path)  # Форматнём путь
 
         # Объект для хранения секций (основных подкаталогов) и опций (подкаталогов секций)
