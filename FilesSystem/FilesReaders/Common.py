@@ -1,4 +1,7 @@
 import os
+import threading
+
+
 from chardet.universaldetector import UniversalDetector
 from Exceptions.ExceptionTypes import ProcessingError, ValidationError
 
@@ -39,8 +42,14 @@ class FileIterator:
         :param post_process_function: функция для "пост обрботки" строки. Функция виде func(str)->str.
         :return: итератор по строкам itertools.islice
         '''
+        self.__full_path = full_path
+        self.__encoding = encoding
 
-        self.__file = open(full_path, mode='r', encoding=encoding)
+        try:
+            self.__file = open(full_path, mode='r', encoding=encoding)
+        except BaseException as miss:  # Если не получилось считать файл
+            raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
+
         self.__post_process_function = post_process_function
 
         self.__counter = start
@@ -51,7 +60,11 @@ class FileIterator:
     def __next__(self):
         if self.__counter < self.__stop:
             self.__counter += 1
-            line = self.__file.readline()
+            try:
+                line = self.__file.readline()
+            except BaseException as miss:  # Если не получилось считать файл
+                raise ProcessingError(f'Reading the next line failed.\nfull_path: {self.__full_path}\nencoding: {self.__encoding}') from miss
+
             if self.__post_process_function is not None:
                 line = self.__post_process_function(line)
             return line
@@ -97,6 +110,11 @@ class CommonMethods:
 
         self.__save_loaded = save_loaded
         self._reset_loaded()  # "сбрасываем" словарь загруженных файлов.
+        self.__mutex = threading.RLock()
+
+    @property
+    def mutex(self) -> threading.RLock:
+        return self.__mutex
 
     @staticmethod
     def concat_path(directory: str, file_name: str) -> str or None:

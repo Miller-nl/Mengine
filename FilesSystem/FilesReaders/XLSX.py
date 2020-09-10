@@ -75,21 +75,22 @@ class XLSX(CommonMethods):
         if not full_path.endswith('.xlsx'):
             raise ValidationError("Incorrect file extension. Only '.xlsx' is available.")
 
-        # определим кодировку файла
-        if encoding is None:
-            encoding = self.get_encoding(full_path=full_path)
+        with self.mutex:
+            # определим кодировку файла
+            if encoding is None:
+                encoding = self.get_encoding(full_path=full_path)
 
-        try:  # Считаем
-            with open(full_path, 'rb') as file:
-                result = pd.read_excel(io=file,
-                                       sheet_name=sheets_names,
-                                       encoding=encoding,
-                                       index_col=index_column_number,
-                                       engine='xlrd'
-                                       )  # считаем его
+            try:  # Считаем
+                with open(full_path, 'rb') as file:
+                    result = pd.read_excel(io=file,
+                                           sheet_name=sheets_names,
+                                           encoding=encoding,
+                                           index_col=index_column_number,
+                                           engine='xlrd'
+                                           )  # считаем его
 
-        except BaseException as miss:  # Если не получилось считать файл
-            raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
+            except BaseException as miss:  # Если не получилось считать файл
+                raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         if (save_loaded is None and self.save_loaded) or save_loaded is True:
             self._ad_loaded(full_path=full_path,
@@ -118,21 +119,22 @@ class XLSX(CommonMethods):
         if not full_path.endswith('.xlsx'):
             raise ValidationError("Incorrect file extension. Only '.xlsx' is available.")
 
-        # определим кодировку файла
-        if encoding is None:
-            encoding = self.get_encoding(full_path=full_path)
+        with self.mutex:
+            # определим кодировку файла
+            if encoding is None:
+                encoding = self.get_encoding(full_path=full_path)
 
-        try:  # Считаем
-            with open(full_path, 'rb') as file:
-                result = pd.read_excel(io=file,
-                                       sheet_name=sheet,
-                                       encoding=encoding,
-                                       index_col=index_column_number,
-                                       engine='xlrd'
-                                       )  # считаем его
+            try:  # Считаем
+                with open(full_path, 'rb') as file:
+                    result = pd.read_excel(io=file,
+                                           sheet_name=sheet,
+                                           encoding=encoding,
+                                           index_col=index_column_number,
+                                           engine='xlrd'
+                                           )  # считаем его
 
-        except BaseException as miss:  # Если не получилось считать файл
-            raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
+            except BaseException as miss:  # Если не получилось считать файл
+                raise ProcessingError(f'Sheet reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         if (save_loaded is None and self.save_loaded) or save_loaded is True:
             self._ad_loaded(full_path=full_path,
@@ -206,29 +208,32 @@ class XLSX(CommonMethods):
             raise ValidationError(f'file_data type must be Series or DataFrame. {type(file_data)} was passed. ' +
                                   'File export failed.')
 
-        name_shifted = False
-        if self.check_access(path=full_path):
-            if shift_name is None:
-                return False
-            elif shift_name is True:
-                full_path = self.name_shifting(full_path=full_path, expansion='.json')
-                name_shifted = True
+        with self.mutex:
+            name_shifted = False
+            if self.check_access(path=full_path):
+                if shift_name is None:
+                    return False
+                elif shift_name is True:
+                    full_path = self.name_shifting(full_path=full_path, expansion='.json')
+                    name_shifted = True
 
-        # Выполним экспорт
-        try:
-            with pd.ExcelWriter(full_path, mode='w') as writer:  # Делаем "писатель файла"
-                for frame_key in file_data.keys():  # Пошли по индексу в словаре
-                    if with_index:
-                        if file_data[frame_key].index.name is None:
-                            file_data[frame_key] = file_data[frame_key].copy()  # берём ссылку, чтобы не изменить объект
-                            file_data[frame_key].index.name = 'index'  # ставим имя индекса (чтобы оно не было пустым)
+            # Выполним экспорт
+            try:
+                with pd.ExcelWriter(full_path, mode='w') as writer:  # Делаем "писатель файла"
+                    for frame_key in file_data.keys():  # Пошли по индексу в словаре
+                        if with_index:
+                            if file_data[frame_key].index.name is None:
+                                file_data[frame_key] = file_data[
+                                    frame_key].copy()  # берём ссылку, чтобы не изменить объект
+                                file_data[
+                                    frame_key].index.name = 'index'  # ставим имя индекса (чтобы оно не было пустым)
 
-                    file_data[frame_key].to_excel(writer, sheet_name=frame_key, encoding=encoding, index=with_index)
-                writer.save()
-                writer.close()
+                        file_data[frame_key].to_excel(writer, sheet_name=frame_key, encoding=encoding, index=with_index)
+                    writer.save()
+                    writer.close()
 
-        except BaseException as miss:
-            raise ProcessingError(f'File export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
+            except BaseException as miss:
+                raise ProcessingError(f'File export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         if name_shifted:
             return full_path
@@ -269,20 +274,23 @@ class XLSX(CommonMethods):
 
         file_data = {sheet_name: file_data}
 
-        # Выполним экспорт
-        try:
-            with pd.ExcelWriter(full_path, mode='a') as writer:  # Делаем "писатель файла"
-                for frame_key in file_data.keys():  # Пошли по индексу в словаре
-                    if with_index:
-                        if file_data[frame_key].index.name is None:
-                            file_data[frame_key] = file_data[frame_key].copy()  # берём ссылку, чтобы не изменить объект
-                            file_data[frame_key].index.name = 'index'  # ставим имя индекса (чтобы оно не было пустым)
+        with self.mutex:
+            # Выполним экспорт
+            try:
+                with pd.ExcelWriter(full_path, mode='a') as writer:  # Делаем "писатель файла"
+                    for frame_key in file_data.keys():  # Пошли по индексу в словаре
+                        if with_index:
+                            if file_data[frame_key].index.name is None:
+                                file_data[frame_key] = file_data[
+                                    frame_key].copy()  # берём ссылку, чтобы не изменить объект
+                                file_data[
+                                    frame_key].index.name = 'index'  # ставим имя индекса (чтобы оно не было пустым)
 
-                    file_data[frame_key].to_excel(writer, sheet_name=frame_key, encoding=encoding, index=with_index)
-                writer.save()
-                writer.close()
+                        file_data[frame_key].to_excel(writer, sheet_name=frame_key, encoding=encoding, index=with_index)
+                    writer.save()
+                    writer.close()
 
-        except BaseException as miss:
-            raise ProcessingError(f'File export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
+            except BaseException as miss:
+                raise ProcessingError(f'Sheet export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         return

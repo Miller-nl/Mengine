@@ -55,13 +55,16 @@ class PICKLE(CommonMethods):
         '''
         if not full_path.endswith('.pickle'):
             raise ValidationError("Incorrect file extension. Only '.pickle' is available.")
+        with self.mutex:
+            try:
+                if not self.check_access(path=full_path):
+                    raise ProcessingError('No access to file')
 
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
-
-        # читаем
-        with open(full_path, mode='rb') as file:
-            result = pickle.load(file)
+                # читаем
+                with open(full_path, mode='rb') as file:
+                    result = pickle.load(file)
+            except BaseException as miss:
+                raise ProcessingError(f'File reading failed. full_path: {full_path}') from miss
 
         return result
 
@@ -83,18 +86,22 @@ class PICKLE(CommonMethods):
         if not full_path.endswith('.pickle'):
             raise ValidationError("Incorrect file extension. Only '.pickle' is available.")
 
-        name_shifted = False
-        if self.check_access(path=full_path):
-            if shift_name is None:
-                return False
-            elif shift_name is True:
-                full_path = self.name_shifting(full_path=full_path, expansion='.json')
-                name_shifted = True
+        with self.mutex:
+            name_shifted = False
+            if self.check_access(path=full_path):
+                if shift_name is None:
+                    return False
+                elif shift_name is True:
+                    full_path = self.name_shifting(full_path=full_path, expansion='.json')
+                    name_shifted = True
 
-        # пишем
-        with open(full_path, mode='wb') as file:
-            pickle.dump(file_data, file, pickle.HIGHEST_PROTOCOL)
-            file.flush()
+            # пишем
+            try:
+                with open(full_path, mode='wb') as file:
+                    pickle.dump(file_data, file, pickle.HIGHEST_PROTOCOL)
+                    file.flush()
+            except BaseException as miss:
+                raise ProcessingError(f'File export failed. full_path: {full_path}') from miss
 
         if name_shifted:
             return full_path

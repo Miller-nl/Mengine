@@ -62,16 +62,20 @@ class TXT(CommonMethods):
         if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
+        with self.mutex:
+            if not self.check_access(path=full_path):
+                raise ProcessingError('No access to file')
 
-        # определим кодировку файла
-        if encoding is None:
-            encoding = self.get_encoding(full_path=full_path)
+            # определим кодировку файла
+            if encoding is None:
+                encoding = self.get_encoding(full_path=full_path)
 
-        # читаем
-        with open(full_path, mode='r', encoding=encoding) as file:
-            result = file.read()
+            # читаем
+            try:
+                with open(full_path, mode='r', encoding=encoding) as file:
+                    result = file.read()
+            except BaseException as miss:
+                raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         if (save_loaded is None and self.save_loaded) or save_loaded is True:
             self._ad_loaded(full_path=full_path,
@@ -94,15 +98,16 @@ class TXT(CommonMethods):
         if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
+        with self.mutex:
+            if not self.check_access(path=full_path):
+                raise ProcessingError('No access to file')
 
-        # определим кодировку файла
-        if encoding is None:
-            encoding = self.get_encoding(full_path=full_path)
+            # определим кодировку файла
+            if encoding is None:
+                encoding = self.get_encoding(full_path=full_path)
 
-        return FileIterator(full_path=full_path, encoding=encoding,
-                            start=start, stop=stop)
+            return FileIterator(full_path=full_path, encoding=encoding,
+                                start=start, stop=stop)
 
     # ------------------------------------------------------------------------------------------------
     # Запись -----------------------------------------------------------------------------------------
@@ -124,22 +129,23 @@ class TXT(CommonMethods):
         if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
-        name_shifted = False
-        if self.check_access(path=full_path):  # если есть файл и мы не дописываем в конец
-            if shift_name is None:
-                return False
-            elif shift_name is True:
-                full_path = self.name_shifting(full_path=full_path, expansion='.json')
-                name_shifted = True
+        with self.mutex:
+            name_shifted = False
+            if self.check_access(path=full_path):  # если есть файл и мы не дописываем в конец
+                if shift_name is None:
+                    return False
+                elif shift_name is True:
+                    full_path = self.name_shifting(full_path=full_path, expansion='.json')
+                    name_shifted = True
 
-        # пишем
-        try:
-            with open(full_path, mode='w', encoding=encoding) as file:
-                file.write(file_data)
-                file.flush()
+            # пишем
+            try:
+                with open(full_path, mode='w', encoding=encoding) as file:
+                    file.write(file_data)
+                    file.flush()
 
-        except BaseException as miss:
-            raise ProcessingError('Error writing to file') from miss
+            except BaseException as miss:
+                raise ProcessingError(f'File export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         if name_shifted:
             return full_path
@@ -161,18 +167,19 @@ class TXT(CommonMethods):
         if not full_path.endswith('.txt'):
             raise ValidationError("Incorrect file extension. Only '.jsonl' is available.")
 
-        if not self.check_access(path=full_path):
-            raise ProcessingError('No access to file')
+        with self.mutex:
+            if not self.check_access(path=full_path):
+                raise ProcessingError('No access to file')
 
-        # пишем
-        try:
-            with open(full_path, mode='a', encoding=encoding) as file:  # Делаем экспорт
-                if new_string:
-                    file.write('\n')
-                file.write(file_data)
-                file.flush()
+            # пишем
+            try:
+                with open(full_path, mode='a', encoding=encoding) as file:  # Делаем экспорт
+                    if new_string:
+                        file.write('\n')
+                    file.write(file_data)
+                    file.flush()
 
-        except BaseException as miss:
-            raise ProcessingError('Error writing to file') from miss
+            except BaseException as miss:
+                raise ProcessingError(f'Line export failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
         return
