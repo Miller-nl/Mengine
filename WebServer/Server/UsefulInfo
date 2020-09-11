@@ -1,9 +1,0 @@
-
-Server variants
-
-http.server
-    https://docs.python.org/3/library/http.server.html
-
-socketserver
-    https://docs.python.org/3/library/socketserver.html
-
