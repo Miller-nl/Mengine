@@ -4,12 +4,16 @@ from Exceptions.ExceptionTypes import ProcessingError
 import pymysql
 import psycopg2
 import sqlite3
+import threading
 
 class NotConnected(Exception):
     pass
 
 class RequestExecutionError(Exception):
     pass
+
+# Проверь, как работает конект в многопоточном режиме в тестах!
+# Поставь мьютекс на работу, всё равно на сервере 1 коннект - 1 сессия - 1 процесс. И "быстрее" запрос не выполнится.
 
 def prepare_equality(values: dict,
                      sep: str) -> str:
@@ -93,7 +97,7 @@ class CommonAdapterInterface:
                                                      user=user, password=password)
         self.__Connection = None
         self.connect()
-
+        self.__mutex = threading.RLock()
 
     def connect(self):
         '''
@@ -103,32 +107,33 @@ class CommonAdapterInterface:
         :return: объект соединения.
         '''
 
-        engine = self.ConnectionData.engine
-        try:
-            if engine == 'MySQL':
-                self.__Connection = pymysql.connect(host=self.ConnectionData.host,
-                                                    port=self.ConnectionData.port,
-                                                    user=self.ConnectionData.user,
-                                                    password=self.ConnectionData.password,
-                                                    database=self.ConnectionData.base_name
-                                                    )  # законектились
-            elif engine == 'PostgreSQL':
-                self.__Connection = psycopg2.connect(host=self.ConnectionData.host,
-                                                     port=self.ConnectionData.port,
-                                                     user=self.ConnectionData.user,
-                                                     password=self.ConnectionData.password,
-                                                     dbname=self.ConnectionData.base_name
-                                                     )  # законектились
-            elif engine == 'SQLite':
-                self.__Connection = sqlite3.connect(database=self.ConnectionData.catalog)  # законектились
+        with self.__mutex:
+            engine = self.ConnectionData.engine
+            try:
+                if engine == 'MySQL':
+                    self.__Connection = pymysql.connect(host=self.ConnectionData.host,
+                                                        port=self.ConnectionData.port,
+                                                        user=self.ConnectionData.user,
+                                                        password=self.ConnectionData.password,
+                                                        database=self.ConnectionData.base_name
+                                                        )  # законектились
+                elif engine == 'PostgreSQL':
+                    self.__Connection = psycopg2.connect(host=self.ConnectionData.host,
+                                                         port=self.ConnectionData.port,
+                                                         user=self.ConnectionData.user,
+                                                         password=self.ConnectionData.password,
+                                                         dbname=self.ConnectionData.base_name
+                                                         )  # законектились
+                elif engine == 'SQLite':
+                    self.__Connection = sqlite3.connect(database=self.ConnectionData.catalog)  # законектились
 
-            else:
-                raise ProcessingError(f'SQL adapter creation failed. Wrong engine type: {engine}. ' +
-                                      'Allowed: MySQL, PostgreSQL, SQLite.')
-        except BaseException as miss:
-            raise ProcessingError(f'SQL adapter creation failed.') from miss
+                else:
+                    raise ProcessingError(f'SQL adapter creation failed. Wrong engine type: {engine}. ' +
+                                          'Allowed: MySQL, PostgreSQL, SQLite.')
+            except BaseException as miss:
+                raise ProcessingError(f'SQL adapter creation failed.') from miss
 
-        self.__connected = True
+            self.__connected = True
         return
 
     # ------------------------------------------------------------------------------------------------
@@ -150,15 +155,18 @@ class CommonAdapterInterface:
 
         :return:
         '''
-        return self.__ConnectionData
+        with self.__mutex:
+            return self.__ConnectionData
 
     @property
     def Connection(self):
-        return self.__Connection
+        with self.__mutex:
+            return self.__Connection
 
     @property
     def open(self) -> bool:
-        return self.__connected
+        with self.__mutex:
+            return self.__connected
 
     # ------------------------------------------------------------------------------------------------
     # Standard Methods -------------------------------------------------------------------------------
@@ -170,19 +178,23 @@ class CommonAdapterInterface:
         :param kwargs:
         :return:
         '''
-        return self.__Connection.cursor(**kwargs)
+        with self.__mutex:
+            return self.__Connection.cursor(**kwargs)
 
     def commit(self):
-        self.__Connection.commit()
+        with self.__mutex:
+            self.__Connection.commit()
         return
 
     def rollback(self):
-        self.__Connection.rollback()
+        with self.__mutex:
+            self.__Connection.rollback()
         return
 
     def close(self):
-        self.__Connection.close()
-        self.__connected = False
+        with self.__mutex:
+            self.__Connection.close()
+            self.__connected = False
         return
 
     # ------------------------------------------------------------------------------------------------
@@ -199,24 +211,25 @@ class CommonAdapterInterface:
         if not self.open:  # Если соединения нет
             raise NotConnected('Adapter not connected.')
 
-        try:
-            cursor = self.Connection.cursor()  # Взяли курсор
-            cursor.execute(request)  # отправили запрос
-            self.Connection.commit()  # Внесём изменения в базу
-            return
-
-        except BaseException as miss:  # Если вышла ошибка
+        with self.__mutex:
             try:
-                self.Connection.rollback()  # Откатим операцию
-            except BaseException:
-                pass
-            raise RequestExecutionError(request) from miss
+                cursor = self.Connection.cursor()  # Взяли курсор
+                cursor.execute(request)  # отправили запрос
+                self.Connection.commit()  # Внесём изменения в базу
+                return
 
-        finally:
-            try:
-                cursor.close()
-            except BaseException:
-                pass
+            except BaseException as miss:  # Если вышла ошибка
+                try:
+                    self.Connection.rollback()  # Откатим операцию
+                except BaseException:
+                    pass
+                raise RequestExecutionError(request) from miss
+
+            finally:
+                try:
+                    cursor.close()
+                except BaseException:
+                    pass
 
     def request_fetch_all(self, request: str) -> list:
         '''
@@ -229,20 +242,21 @@ class CommonAdapterInterface:
         if not self.open:  # Если соединения нет
             raise NotConnected('Adapter not connected.')
 
-        try:
-            cursor = self.Connection.cursor()  # Взяли курсор
-            cursor.execute(request)  # отправили запрос
-            result = cursor.fetchall()  # Получим ответ
-            return result
-
-        except BaseException as miss:  # Если вышла ошибка
-            raise RequestExecutionError(request) from miss
-
-        finally:
+        with self.__mutex:
             try:
-                cursor.close()
-            except BaseException:
-                pass
+                cursor = self.Connection.cursor()  # Взяли курсор
+                cursor.execute(request)  # отправили запрос
+                result = cursor.fetchall()  # Получим ответ
+                return result
+
+            except BaseException as miss:  # Если вышла ошибка
+                raise RequestExecutionError(request) from miss
+
+            finally:
+                try:
+                    cursor.close()
+                except BaseException:
+                    pass
 
     def request_fetch_many(self, request: str,
                            size: int = 1) -> list:
@@ -257,20 +271,21 @@ class CommonAdapterInterface:
         if not self.open:  # Если соединения нет
             raise NotConnected('Adapter not connected.')
 
-        try:
-            cursor = self.Connection.cursor()  # Взяли курсор
-            cursor.execute(request)  # отправили запрос
-            result = cursor.fetchmany(size=size)  # Получим ответ
-            return result
-
-        except BaseException as miss:  # Если вышла ошибка
-            raise RequestExecutionError(request) from miss
-
-        finally:
+        with self.__mutex:
             try:
-                cursor.close()
-            except BaseException:
-                pass
+                cursor = self.Connection.cursor()  # Взяли курсор
+                cursor.execute(request)  # отправили запрос
+                result = cursor.fetchmany(size=size)  # Получим ответ
+                return result
+
+            except BaseException as miss:  # Если вышла ошибка
+                raise RequestExecutionError(request) from miss
+
+            finally:
+                try:
+                    cursor.close()
+                except BaseException:
+                    pass
 
     def request_fetch_value(self, request: str) -> object:
         '''
@@ -286,20 +301,21 @@ class CommonAdapterInterface:
         if not self.open:  # Если соединения нет
             raise NotConnected('Adapter not connected.')
 
-        try:
-            cursor = self.Connection.cursor()  # Взяли курсор
-            cursor.execute(request)  # отправили запрос
-            result = cursor.fetchone()[0]  # Получим ответ
-            return result
-
-        except BaseException as miss:  # Если вышла ошибка
-            raise RequestExecutionError(request) from miss
-
-        finally:
+        with self.__mutex:
             try:
-                cursor.close()
-            except BaseException:
-                pass
+                cursor = self.Connection.cursor()  # Взяли курсор
+                cursor.execute(request)  # отправили запрос
+                result = cursor.fetchone()[0]  # Получим ответ
+                return result
+
+            except BaseException as miss:  # Если вышла ошибка
+                raise RequestExecutionError(request) from miss
+
+            finally:
+                try:
+                    cursor.close()
+                except BaseException:
+                    pass
 
     # ------------------------------------------------------------------------------------------------
     # Simple requests --------------------------------------------------------------------------------
