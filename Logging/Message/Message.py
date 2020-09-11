@@ -1,6 +1,6 @@
 import datetime
 
-from .ExceptionAndTrace import prepare_exception, prepare_trace
+from Logging.Message.ExceptionAndTrace import prepare_exception, prepare_trace
 
 # ------------------------------------------------------------------------------------------------
 # Вспомогательные функции ------------------------------------------------------------------------
@@ -27,6 +27,32 @@ class Message:
     '''
     Объект, реализующий DTO для сообщений.
     Методы и свойства:
+        Identification
+            app_name
+            launch_key
+            processing_key
+            submodule_name
+            function_name
+            identification() - Get all identification parameters
+
+        Message
+            time
+            logging_level
+            message
+            main_message() - Get all message parameters
+
+        Data
+            logging_data
+            additional_data
+            all_log_data() - Get all data parameters
+
+        Exception
+            error_type
+            exception_message
+            trace
+            exception_data() - Get all exception_message parameters
+
+
         Сообщение
             message - само сообщение
 
@@ -36,16 +62,18 @@ class Message:
 
             additional_data - дополнительные данне, если требуются
 
-            exception - данные исключения
+            exception_message - данные исключения
 
             trace - данные следа
 
         Опознавательные данные
-            process_name - имя процесса
+            app_name - имя основного модуля
 
-            session_key - ключ сессии/запуска
+            launch_key - ключ сессии/запуска логгера
 
-            main_module_name - имя основного модуля
+            processing_key - имя процесса обработки в приложении
+
+
 
             submodule_name - имя "подмодуля"
 
@@ -59,15 +87,20 @@ class Message:
 
     def __init__(self, message: str,
                  logging_level: int,
-                 error_type: type or None = None,
-                 main_module_name: str = None,
-                 process_name: str = None,
-                 session_key: str = None,
+
+                 app_name: str = None,
+                 launch_key: str = None,
+                 processing_key: str = None,
+
                  function_name: str or bool = True,
                  submodule_name: str = None,
+
                  logging_data: object = None,
+
                  exception: tuple or bool = True,
                  trace: list or bool = False,
+                 error_type: type or None = None,
+
                  drop_in_trace: int = 2,
                  **kwargs):
         '''
@@ -88,10 +121,9 @@ class Message:
                                 CRITICAL	Серьезная ошибка, указывающая на то,
                                         что сама программа не может продолжить работу.
 
-        :param error_type: тип ошибки, если требуется.
-        :param main_module_name: имя вызывающего модуля в процессе. Это имя, созданное менеджером процесса.
-        :param process_name: имя процесса, в котором задействуется модуль (секция) (берётся у логера)
-        :param session_key: ключ сессии или порядковый номер запуска, если требуется. (берётся у логера)
+        :param app_name: имя приложения
+        :param launch_key: ключ запуска приложения
+        :param processing_key: ключ конкретного процесса обработки в приложении
         :param submodule_name: имя подмодуля (берётся у отправщика сообщений)
         :param function_name: имя вызывающей функции (берётся у отправщика сообщений)
         :param logging_data: dto объект, который будет залогирован. Обычно содержит информацию о данных,
@@ -101,6 +133,7 @@ class Message:
             Если этот параметр не False, то trace игнорируется
         :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
             следа внутри функции. Если задан exception_mistake, то trace игнорируется.
+        :param error_type: тип ошибки, если требуется. Игнорируется, если используется exception.
         :param kwargs: дополнительные параметры, который уйдeт на логирование в json. Если названия параметров
             совпадут  с индексами в data, то индексы, находившиеся в data будут перезаписаны значениями kwargs
         :param drop_in_trace: сколько скинуть объектов с конца следа?
@@ -109,19 +142,22 @@ class Message:
         self.__message = message
         self.__logging_level = logging_level
 
-        self.__error_type = error_type
-
         # Установим след и исключение
-        self.__exception, self.__trace = self.__prepare_exception_and_trace(exception=exception, trace=trace)
+        error_type, exception_message, trace = self.__prepare_exception_and_trace(exception=exception,
+                                                                                  error_type=error_type,
+                                                                                  trace=trace)
+        self.__error_type = error_type
+        self.__trace = trace
+        self.__exception_message = exception_message
 
         # Подготовим имя функции
         self.__function_name = self.__prepare_function_name(function_name=function_name)
 
         # Опознавательные данные
-        self.__process_name = process_name
-        self.__session_key = session_key
+        self.__app_name = app_name
+        self.__launch_key = launch_key
 
-        self.__main_module_name = main_module_name
+        self.__processing_key = processing_key
         self.__submodule_name = submodule_name
 
         self.__time = str(datetime.datetime.now())
@@ -132,11 +168,13 @@ class Message:
 
         self.__drop_in_trace = drop_in_trace
 
+
     # ---------------------------------------------------------------------------------------------
     # Подготовка параметров -----------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     def __prepare_exception_and_trace(self,
                                       exception: tuple or bool = True,
+                                      error_type: type or None = None,
                                       trace: list or bool = False):
         '''
         Функция подготавливает данные про след и исключение.
@@ -144,19 +182,25 @@ class Message:
         :param exception: данные об ошибке. Или это tuple, полученный от sys.exc_info(), состоящий из
             всех трёхэлементов, или указание на запрос ошибки внутри функции логирования.
             Если этот параметр не False, то trace игнорируется
+        :param trace: error_type явно переданный тип ошибки. Игнорируется, если используется exception
         :param trace: список объектов следа, полученный через traceback.extract_stack(), или указание на запрос
             следа внутри функции. Если задан exception_mistake, то trace игнорируется.
-        :return: exception - данные исключения (строка или None), trace - след (список или None).
+        :return: error_type, exception_message - данные исключения (строка или None), trace - след (список или None).
         '''
         if exception is False:  # Если не требуется брать исключение
             exception = None  # Укажем его отсутствие
 
-        # Выполним развёртку exception и traceback
+        # Выполним развёртку exception_message и traceback
         exception = prepare_exception(exception_mistake=exception)
+
         if exception is not None:  # Если исключение есть
-            trace = exception[1]  # отделили след
-            exception = exception[0]  # отделили сообщение
+            error_type = exception[0]
+            exception_message = exception[1].args[0]
+            trace = exception[2]  # отделили след
+
         else:  # Если исключения нет
+            exception_message = None
+
             # Делаем след опционально
             if isinstance(trace, list):  # Если подан уже след
                 pass
@@ -166,7 +210,7 @@ class Message:
             else:  # Если False
                 trace = None
 
-        return exception, trace
+        return error_type, exception_message, trace
 
     def __prepare_function_name(self, function_name: str or bool = True) -> str or None:
         '''
@@ -183,24 +227,76 @@ class Message:
             return None
 
     # ---------------------------------------------------------------------------------------------
-    # Сообщение -----------------------------------------------------------------------------------
+    # identification ------------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
     @property
-    def error_type(self) -> type or None:
+    def app_name(self) -> str or None:
         '''
-        Отдаёт тип ошибки или None, если последний не указан.
+        Имя приложения
+
         :return:
         '''
-        return self.__error_type
+        return self.__app_name
 
     @property
-    def message(self) -> str:
+    def launch_key(self) -> str or None:
         '''
-        Основное сообщение логера.
+        Ключ запуска приложения
 
         :return:
         '''
-        return self.__message
+        return self.__launch_key
+
+    @property
+    def processing_key(self) -> str or None:
+        '''
+         ключ конкретного процесса обработки в приложении
+
+        :return:
+        '''
+        return self.__processing_key
+
+    @property
+    def submodule_name(self) -> str or None:
+        '''
+        Имя вызывающего подмодуля приложения
+
+        :return:
+        '''
+        return self.__submodule_name
+
+    @property
+    def function_name(self) -> str or None:
+        '''
+        Имя вызывающей функции
+
+        :return:
+        '''
+        return self.__function_name
+
+    def identification(self) -> dict:
+        '''
+        returns identification data
+        :return:
+        '''
+        identification = {'app_name': self.app_name,
+                          'launch_key': self.launch_key,
+                          'processing_key': self.processing_key,
+                          'submodule_name': self.submodule_name,
+                          'function_name': self.function_name}
+        return identification
+
+    # ---------------------------------------------------------------------------------------------
+    # Message -------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
+    @property
+    def time(self) -> str:
+        '''
+        Время создания сообщения
+
+        :return:
+        '''
+        return self.__time
 
     @property
     def logging_level(self) -> int:
@@ -211,6 +307,29 @@ class Message:
         '''
         return self.__logging_level
 
+    @property
+    def message(self) -> str:
+        '''
+        Основное сообщение логера.
+
+        :return:
+        '''
+        return self.__message
+
+    def main_message(self) -> dict:
+        '''
+
+        :return:
+        '''
+        message = {'time': self.time,
+                   'logging_level': self.logging_level,
+                   'error_type': self.error_type,
+                   'message': self.message}
+        return message
+
+    # ---------------------------------------------------------------------------------------------
+    # Log Data ------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
     @property
     def logging_data(self) -> dict or str or list:
         '''
@@ -229,14 +348,29 @@ class Message:
         '''
         return self.__additional_data
 
+    def all_log_data(self) -> dict:
+        log_data = {'logging_data': self.logging_data, 'additional_data': self.additional_data}
+        return log_data
+
+    # ---------------------------------------------------------------------------------------------
+    # Exception Data ------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------
     @property
-    def exception(self) -> str or None:
+    def error_type(self) -> type or None:
+        '''
+        Отдаёт тип ошибки или None, если последний не указан.
+        :return:
+        '''
+        return self.__error_type
+
+    @property
+    def exception_message(self) -> str or None:
         '''
         Данные строка с описанием ошибки/исключения, если они есть.
 
         :return:
         '''
-        return self.__exception
+        return self.__exception_message
 
     @property
     def trace(self) -> list or None:
@@ -247,92 +381,42 @@ class Message:
         '''
         return self.__trace
 
-    # ---------------------------------------------------------------------------------------------
-    # Опознавательные данные ----------------------------------------------------------------------
-    # ---------------------------------------------------------------------------------------------
-    @property
-    def process_name(self) -> str or None:
-        '''
-        Имя процесса
-
-        :return:
-        '''
-        return self.__process_name
-
-    @property
-    def session_key(self) -> str or None:
-        '''
-        Ключ запуска сессии
-
-        :return:
-        '''
-        return self.__session_key
-
-    @property
-    def main_module_name(self) -> str or None:
-        '''
-        Имя основного вызывающего модуля
-
-        :return:
-        '''
-        return self.__main_module_name
-
-    @property
-    def submodule_name(self) -> str or None:
-        '''
-        Имя вызывающего подмодуля
-
-        :return:
-        '''
-        return self.__submodule_name
-
-    @property
-    def function_name(self) -> str or None:
-        '''
-        Имя вызывающей функции
-
-        :return:
-        '''
-        return self.__function_name
-
-    @property
-    def time(self) -> str:
-        '''
-        Время создания сообщения
-
-        :return:
-        '''
-        return self.__time
+    def exception_data(self) -> dict:
+        exception_data = {'error_type': self.error_type,
+                          'exception_message': self.exception_message,
+                          'trace': self.trace}
+        return exception_data
 
     # ---------------------------------------------------------------------------------------------
     # Экспорт -------------------------------------------------------------------------------------
     # ---------------------------------------------------------------------------------------------
-    def get_dict(self, trimmed: bool = False) -> dict:
+    def get_dict(self,
+                 main_message: bool = True,
+                 identification: bool = True,
+                 all_log_data: bool = True,
+                 exception_data: bool = True) -> dict:
         '''
-        Функция подготавливает словарь, если это требуется.
-        :param trimmed: сократить ли сообщение? False - нет; True - исключить данные logging_data и additional_data
-        :return: словарь
+        Prepares a dictionary with message parameters
+
+        :param main_message:
+        :param identification:
+        :param all_log_data:
+        :param exception_data:
+        :return:
         '''
         export_dict = {}
 
-        export_dict['time'] = self.time
+        if main_message:
+            export_dict = {**export_dict, **self.main_message()}
 
-        export_dict['process_name'] = self.process_name
-        export_dict['session_key'] = self.session_key
-        export_dict['main_module_name'] = self.main_module_name
-        export_dict['submodule_name'] = self.submodule_name
-        export_dict['function_name'] = self.function_name
+        if identification:
+            export_dict = {**export_dict, **self.identification()}
 
-        export_dict['message'] = self.message
-        export_dict['logging_level'] = self.logging_level
-        export_dict['exception'] = self.exception
-        export_dict['trace'] = self.trace
+        if all_log_data:
+            export_dict = {**export_dict, **self.all_log_data()}
 
-        if not trimmed:  # Если отдавать всё
-            export_dict['logging_data'] = self.logging_data
-            export_dict['additional_data'] = self.additional_data
-
-        export_dict['trimmed'] = trimmed
+        if exception_data:
+            export_dict = {**export_dict, **self.exception_data()}
 
         return export_dict
 
