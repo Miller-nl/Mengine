@@ -24,13 +24,6 @@ class XLSX(CommonMethods):
 
             get_encoding() - получить кодировку файла
 
-        Настройки считывания
-            save_loaded - сохранять ли считанные файлы?
-
-            loaded - словарь сохранённых файлов
-
-            _reset_loaded - обновить словарь сохранённых файлов
-
         Чтение - запись
             write() - запись
 
@@ -46,12 +39,12 @@ class XLSX(CommonMethods):
         '''
 
         # Выполним стандартный init
-        CommonMethods.__init__(self, save_loaded=False)
+        CommonMethods.__init__(self)
 
     # ------------------------------------------------------------------------------------------------
     # Чтение -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    def read(self, full_path: str, save_loaded: bool = None,
+    def read(self, full_path: str,
              encoding: str = 'utf-8',
              index_column_number: int = None,
              sheets_names: int or str or list = None
@@ -60,8 +53,6 @@ class XLSX(CommonMethods):
         Функция считывания xlsx файла
 
         :param full_path: полный путь к файлу
-        :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
-            настройку (save_loaded)
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :param index_column_number: имя колонки с названием индекса
         :param sheets_names: определяет листы, которые требуется считать:
@@ -92,14 +83,9 @@ class XLSX(CommonMethods):
             except BaseException as miss:  # Если не получилось считать файл
                 raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
 
-        if (save_loaded is None and self.save_loaded) or save_loaded is True:
-            self._ad_loaded(full_path=full_path,
-                            data=result)
-
         return result
 
     def read_sheet(self, full_path: str, sheet: int or str,
-                   save_loaded: bool = None,
                    encoding: str = 'utf-8',
                    index_column_number: int = None
                    ) -> pd.core.frame.DataFrame:
@@ -110,8 +96,6 @@ class XLSX(CommonMethods):
         :param sheet: определяет листы, которые требуется считать:
             str - имя листа;
             int - номер листа (с нулевого);
-        :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
-            настройку (save_loaded)
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :param index_column_number: имя колонки с названием индекса
         :return: считанный лист в виде pd.core.frame.DataFrame.
@@ -135,10 +119,6 @@ class XLSX(CommonMethods):
 
             except BaseException as miss:  # Если не получилось считать файл
                 raise ProcessingError(f'Sheet reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
-
-        if (save_loaded is None and self.save_loaded) or save_loaded is True:
-            self._ad_loaded(full_path=full_path,
-                            data=result)
 
         return result
 

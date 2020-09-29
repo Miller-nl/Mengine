@@ -15,13 +15,6 @@ class StandartReader(CommonMethods):
 
         shift_name() - функция модификации имени файла, если оно не является уникальным.
 
-        Настройки считывания
-            save_loaded - сохранять ли считанные файлы?
-
-            loaded - словарь сохранённых файлов
-
-            _reset_loaded - обновить словарь сохранённых файлов
-
         Проверки
             check_access() - проверка доступа
 
@@ -29,26 +22,23 @@ class StandartReader(CommonMethods):
 
     '''
 
-    def __init__(self, save_loaded: bool = False):
+    def __init__(self):
         '''
 
-        :param save_loaded: сохоанять ли считанные файлы?
         '''
 
         # Выполним стандартный init
-        CommonMethods.__init__(self, save_loaded=save_loaded)
+        CommonMethods.__init__(self)
 
     # ------------------------------------------------------------------------------------------------
     # Чтение -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    def read(self, full_path: str, save_loaded: bool = None,
+    def read(self, full_path: str,
              encoding: str = None) -> object:
         '''
         Функция считывания файла
 
         :param full_path: полный путь к файлу
-        :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
-            настройку (save_loaded)
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :return: контент файла
         '''
@@ -66,11 +56,6 @@ class StandartReader(CommonMethods):
                     result = file.read()
             except BaseException as miss:
                 raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
-
-        if (save_loaded is None and self.save_loaded) or save_loaded is True:
-            self._ad_loaded(full_path=full_path,
-                            data=result)
-
         return result
 
     # ------------------------------------------------------------------------------------------------

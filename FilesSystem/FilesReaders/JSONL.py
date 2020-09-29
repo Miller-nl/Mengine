@@ -23,13 +23,6 @@ class JSONL(CommonMethods):
 
             get_encoding() - получить кодировку файла
 
-        Настройки считывания
-            save_loaded - сохранять ли считанные файлы?
-
-            loaded - словарь сохранённых файлов
-
-            _reset_loaded - обновить словарь сохранённых файлов
-
         Чтение - запись
             read() - чтение
 
@@ -40,26 +33,23 @@ class JSONL(CommonMethods):
             write_line() - добавить строку
     '''
 
-    def __init__(self, save_loaded: bool = False):
+    def __init__(self):
         '''
 
-        :param save_loaded: сохоанять ли считанные файлы?
         '''
 
         # Выполним стандартный init
-        CommonMethods.__init__(self, save_loaded=save_loaded)
+        CommonMethods.__init__(self)
 
     # ------------------------------------------------------------------------------------------------
     # Чтение -----------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
-    def read(self, full_path: str, save_loaded: bool = None,
+    def read(self, full_path: str,
              encoding: str = 'utf-8') -> object:
         '''
         Функция считывания jsonl файла
 
         :param full_path: полный путь к файлу
-        :param save_loaded: сохранить ли загруженный файл? True - да, False - нет, None - использовать стандартную
-            настройку (save_loaded)
         :param encoding: строка, явно указывающая кодировку или None для её автоопределения
         :return: считанный файл в виде JSON объекта
         '''
@@ -82,11 +72,6 @@ class JSONL(CommonMethods):
                         result.append(json.loads(data_string))
             except BaseException as miss:  # Если не получилось считать файл
                 raise ProcessingError(f'File reading failed.\nfull_path: {full_path}\nencoding: {encoding}') from miss
-
-        if (save_loaded is None and self.save_loaded) or save_loaded is True:
-            self._ad_loaded(full_path=full_path,
-                            data=result)
-
         return result
 
     def read_by_lines(self, full_path: str,

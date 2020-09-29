@@ -92,24 +92,12 @@ class CommonMethods:
 
             get_encoding() - получить кодировку файла
 
-        Настройки считывания
-            save_loaded - сохранять ли считанные файлы?
-
-            loaded - словарь сохранённых файлов
-
-            _reset_loaded - обновить словарь сохранённых файлов
-
     '''
 
-    def __init__(self,
-                 save_loaded: bool = False):
+    def __init__(self):
         '''
 
-        :param save_loaded: сохоанять ли считанные файлы?
         '''
-
-        self.__save_loaded = save_loaded
-        self._reset_loaded()  # "сбрасываем" словарь загруженных файлов.
         self.__mutex = threading.RLock()
 
     @property
@@ -165,81 +153,6 @@ class CommonMethods:
         export_name = f'{name}({number}).{expansion}'
 
         return export_name
-
-    # ------------------------------------------------------------------------------------------------
-    # Настройки чтения -------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    @property
-    def save_loaded(self) -> bool:
-        '''
-        Сохраняются ли считываемые файлы?
-
-        :return: bool статус
-        '''
-        return self.__save_loaded
-
-    @save_loaded.setter
-    def save_loaded(self, value: bool):
-        '''
-        Устанавливает детектор необходимости сохранения считанных файлов
-
-        :param value: bool значение
-        :return: ничего
-        '''
-        if not isinstance(value, bool):
-            raise ValidationError('Wrong "value" type')
-        self.__save_loaded = value
-        return
-
-    @property
-    def loaded(self) -> dict:
-        '''
-        Отдаёт копию словаря с загруженными файлами
-
-        :return:
-        '''
-        return self.__loaded.copy()
-
-    def _reset_loaded(self):
-        '''
-        Сбрасывает словарь "загруженных" файлов.
-
-        :return:
-        '''
-        self.__loaded = {}
-        return
-
-    def get_loaded(self, full_path: str) -> object or None:
-        '''
-        Функция отдаёт объект по полному имени файла.
-
-        :param full_path: полный путь к файлу
-        :return: объект из файла или None, если таковой отсутствует
-        '''
-        return self.__loaded[full_path]
-
-    def _ad_loaded(self, full_path: str, data: object) -> bool:
-        '''
-        Добавление считанных данных в словарь
-
-        :param full_path: полный путь к файлу
-        :param data: данные
-        :return: True - имя было уникально, добавлено (или данные совпали); False - имя было занято (данные не совпали),
-            объект заменён.
-        '''
-        try:
-            a = self.__loaded[full_path]
-
-            if a == data:  # проверим идентичность
-                return True  # Если данные идентичны, замена не делается!
-
-            else:  # если данные отличаются
-                self.__loaded[full_path] = data  # установим данные
-                return False
-
-        except KeyError:  # Если данных нет
-            self.__loaded[full_path] = data
-            return True
 
     # ------------------------------------------------------------------------------------------------
     # Проверки ---------------------------------------------------------------------------------------

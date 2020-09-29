@@ -96,8 +96,10 @@ class CommonAdapterInterface:
                                                      host=host, port=port,
                                                      user=user, password=password)
         self.__Connection = None
-        self.connect()
         self.__mutex = threading.RLock()
+
+        self.connect()
+
 
     def connect(self):
         '''
